@@ -62,18 +62,25 @@ function saveJSON(key: string, value: unknown): void {
   }
 }
 
-/** Lumens earned for finishing a campaign stage. */
+/** Lumens earned for finishing a campaign stage — deterministic and readable:
+    stars carry the bulk (20 each), score adds a small tail. */
 export function levelRewards(stars: number, score: number): { lumens: number; lens: number; null: number } {
   return {
-    lumens: 20 + stars * 15 + Math.floor(score / 400),
+    lumens: stars * 20 + Math.floor(score / 500),
     lens: 1,
     null: stars >= 2 ? 1 : 0,
   }
 }
 
+/** Tiny consolation for re-sealing an already-mastered stage (no booster farming). */
+export function replayRewards(stars: number): { lumens: number; lens: number; null: number } {
+  return { lumens: 5 + stars * 2, lens: 0, null: 0 }
+}
+
 export function useProgress() {
   const [player, setPlayer] = useState<{ id: string; name: string }>({ id: '', name: '' })
   const [progress, setProgress] = useState<ProgressMap>({})
+  const progressRef = useRef<ProgressMap>({})
   const [lumens, setLumens] = useState(0)
   const lumensRef = useRef(0)
   const [inventory, setInventory] = useState<BoosterInventory>(DEFAULT_INVENTORY)
@@ -88,6 +95,7 @@ export function useProgress() {
       const p = ensurePlayer()
       nameRef.current = p.name
       const local = loadJSON<ProgressMap>(LS_PROGRESS, {})
+      progressRef.current = local
       await Promise.resolve()
       if (cancelled) return
       setPlayer(p)
@@ -121,6 +129,7 @@ export function useProgress() {
                 bestScore: Math.max(cur?.bestScore ?? 0, row.bestScore),
               }
             }
+            progressRef.current = merged
             saveJSON(LS_PROGRESS, merged)
             return merged
           })
@@ -146,6 +155,7 @@ export function useProgress() {
             bestScore: Math.max(cur?.bestScore ?? 0, score),
           },
         }
+        progressRef.current = next
         saveJSON(LS_PROGRESS, next)
         return next
       })
@@ -260,8 +270,12 @@ export function useProgress() {
 
   const onLevelWin = useCallback(
     (levelId: number, stars: number, score: number) => {
+      // full rewards only when this seal actually improves the folio —
+      // replaying a mastered stage grants a small consolation instead
+      const prev = progressRef.current[levelId]
+      const improved = !prev || stars > prev.stars || score > prev.bestScore
       saveResult(levelId, score, stars)
-      const r = levelRewards(stars, score)
+      const r = improved ? levelRewards(stars, score) : replayRewards(stars)
       addLumens(r.lumens)
       addBoosters({ lens: r.lens, null: r.null })
       // codex milestones
@@ -269,7 +283,7 @@ export function useProgress() {
       if (stars >= 3) ids.push('entity:cheer')
       if (levelId >= 12) ids.push('entity:walk')
       discover(...ids)
-      return r
+      return { ...r, improved }
     },
     [addBoosters, addLumens, saveResult],
   )

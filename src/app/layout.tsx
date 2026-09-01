@@ -18,6 +18,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
+  viewportFit: "cover",
   themeColor: "#101d13",
 };
 
@@ -27,7 +28,7 @@ export const metadata: Metadata = {
   keywords: ["Wonderweave", "match 3", "puzzle game", "casual game"],
   authors: [{ name: "Wonderweave" }],
   icons: {
-    icon: "/game/assets/tile-star.png",
+    icon: "/game/assets/tile-star.webp",
   },
   openGraph: {
     title: "Wonderweave — Threads of a Forgotten World",

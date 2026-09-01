@@ -120,9 +120,52 @@ export function RibbonBanner({
   )
 }
 
-/* ---------------- Bottom navigation ---------------- */
+/* ---------------- Bottom navigation (in-game carved wooden bar) ---------------- */
 
-export type NavTab = 'map' | 'codex' | 'relics' | 'daily'
+export type NavTab = 'home' | 'map' | 'codex' | 'relics' | 'daily'
+
+function NavMedalIcon({ tab }: { tab: NavTab }) {
+  const cls = 'w-[22px] h-[22px]'
+  switch (tab) {
+    case 'home':
+      return (
+        <svg viewBox="0 0 24 24" className={cls} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <path d="M4 11.2 12 4l8 7.2" />
+          <path d="M6 9.8V20h4.4v-5.2h3.2V20H18V9.8" />
+        </svg>
+      )
+    case 'map':
+      return (
+        <svg viewBox="0 0 24 24" className={cls} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <path d="M3.2 6.4 9 4.2l6 2.2 5.8-2.2v13.4L15 19.8l-6-2.2-5.8 2.2V6.4Z" />
+          <path d="M9 4.2v13.4M15 6.4v13.4" />
+        </svg>
+      )
+    case 'codex':
+      return (
+        <svg viewBox="0 0 24 24" className={cls} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V4a2 2 0 0 0-2-2H6.5A2.5 2.5 0 0 0 4 4.5v15Z" />
+          <path d="M4 19.5A2.5 2.5 0 0 0 6.5 22H20v-5" />
+          <path d="M9 7h6" />
+        </svg>
+      )
+    case 'relics':
+      return (
+        <svg viewBox="0 0 24 24" className={cls} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <path d="M6 3h12l4 6-10 12L2 9l4-6Z" />
+          <path d="M2 9h20M12 3 8 9l4 12 4-12-4-6" />
+        </svg>
+      )
+    case 'daily':
+      return (
+        <svg viewBox="0 0 24 24" className={cls} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <rect x="3" y="5" width="18" height="16" rx="2.5" />
+          <path d="M8 3v4M16 3v4M3 10h18" />
+          <path d="M9.5 15.5 11 17l3.5-3.5" />
+        </svg>
+      )
+  }
+}
 
 export function BottomNav({
   active,
@@ -133,53 +176,15 @@ export function BottomNav({
   onNavigate: (tab: NavTab) => void
   dailyDone?: boolean
 }) {
-  const items: { id: NavTab; label: string; icon: React.ReactNode; badge?: boolean }[] = [
-    {
-      id: 'map',
-      label: 'Map',
-      icon: (
-        <svg viewBox="0 0 24 24" className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-          <rect x="3.2" y="5" width="17.6" height="14" rx="2.4" />
-          <path d="M9.2 5.6v12.8M14.8 5.6v12.8" />
-        </svg>
-      ),
-    },
-    {
-      id: 'codex',
-      label: 'Codex',
-      icon: (
-        <svg viewBox="0 0 24 24" className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-          <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V4a2 2 0 0 0-2-2H6.5A2.5 2.5 0 0 0 4 4.5v15Z" />
-          <path d="M4 19.5A2.5 2.5 0 0 0 6.5 22H20v-5" />
-          <path d="M9 7h6" />
-        </svg>
-      ),
-    },
-    {
-      id: 'relics',
-      label: 'Relics',
-      icon: (
-        <svg viewBox="0 0 24 24" className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-          <path d="M6 3h12l4 6-10 12L2 9l4-6Z" />
-          <path d="M2 9h20M12 3 8 9l4 12 4-12-4-6" />
-        </svg>
-      ),
-    },
-    {
-      id: 'daily',
-      label: 'Daily',
-      icon: (
-        <svg viewBox="0 0 24 24" className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-          <rect x="3" y="5" width="18" height="16" rx="2.5" />
-          <path d="M8 3v4M16 3v4M3 10h18" />
-          <path d="M9.5 15.5 11 17l3.5-3.5" />
-        </svg>
-      ),
-      badge: !dailyDone,
-    },
+  const items: { id: NavTab; label: string; badge?: boolean }[] = [
+    { id: 'home', label: 'Home' },
+    { id: 'map', label: 'Map' },
+    { id: 'codex', label: 'Codex' },
+    { id: 'relics', label: 'Relics' },
+    { id: 'daily', label: 'Daily', badge: !dailyDone },
   ]
   return (
-    <nav aria-label="Main navigation" className="bottom-nav relative z-20 grid grid-cols-4 gap-1 px-2 py-1.5">
+    <nav aria-label="Main navigation" className="bottom-nav relative z-20 grid grid-cols-5 gap-0.5 px-1.5 pt-1.5">
       {items.map((it) => (
         <button
           key={it.id}
@@ -192,15 +197,20 @@ export function BottomNav({
             onNavigate(it.id)
           }}
           className={cn(
-            'nav-item relative flex flex-col items-center justify-center gap-0.5 rounded-xl py-1.5 cursor-pointer min-h-[54px]',
+            'nav-item relative flex flex-col items-center justify-start gap-1 rounded-xl pt-1 pb-0.5 cursor-pointer min-h-[58px]',
             active === it.id && 'nav-item-active',
           )}
         >
-          <span className="relative">
-            {it.icon}
-            {it.badge && <span className="absolute -top-0.5 -right-1 w-2.5 h-2.5 rounded-full bg-[#e2695c] border border-[#7c1f24]" aria-hidden />}
+          <span className="nav-medal relative">
+            <NavMedalIcon tab={it.id} />
+            {it.badge && (
+              <span
+                className="absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full bg-gradient-to-b from-[#ff9673] to-[#c74440] border-2 border-[#2b1e10] anim-glow-pulse"
+                aria-hidden
+              />
+            )}
           </span>
-          <span className="text-[10px] font-bold uppercase tracking-[0.14em]">{it.label}</span>
+          <span className="nav-label text-[9px] font-bold uppercase tracking-[0.14em] leading-none">{it.label}</span>
         </button>
       ))}
     </nav>

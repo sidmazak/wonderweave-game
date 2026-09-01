@@ -40,13 +40,13 @@ export function ChapterScreen({
         <div className="absolute inset-0 bg-gradient-to-b from-[#0e1c14]/40 via-[#0e1c14]/20 to-[#0e1c14]/55" />
       </div>
 
-      {/* back to atlas */}
-      <div className="absolute top-3 left-3 z-20">
+      {/* back to atlas — z-30 + pointer-safe header so the ribbon never eats taps */}
+      <div className="absolute top-3 left-3 z-30">
         <IconButton img={A('icon-back')} label="Back to Atlas" onClick={onBack} />
       </div>
 
       {/* ribbon header */}
-      <header className="relative z-20 pt-4">
+      <header className="relative z-20 pt-4 pointer-events-none">
         <RibbonBanner title={`CHAPTER ${ch.numeral}`} subtitle={ch.title} />
       </header>
 

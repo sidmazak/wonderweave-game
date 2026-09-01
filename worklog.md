@@ -201,3 +201,25 @@ Work Log:
 
 Stage Summary:
 - Wonderweave v3: endless procedural storybook match-3 — theme changes every 12 stages with Echo laps; full combo matrix; adaptive 4-layer music; fixed dialogs/home/ambience; local-only progression; all quality gates green
+
+---
+Task ID: 5 (v3.1 — living world, fast-load architecture, journey fixes)
+Agent: main (Z.ai Code)
+Task: Themed bottom nav + Home tab, lore page fix, real-preloader loading screen, homepage life (leaves/fireflies/wobble/mascot), asset optimization (WebP), quit→home journey, chapter back-button fix, dialog/badge values, smoothness + mobile pass
+
+Work Log:
+- ASSETS: converted all 76 PNGs → WebP q88 (3.38MB → 1.0MB, 71% smaller, alpha preserved); deleted PNGs from public/; A() → .webp; favicon updated; assets.ts now exports ALL_ASSETS + CRITICAL_ASSETS manifests
+- PRELOADER: new src/lib/game/preload.ts — real Image()-based preload with monotonic weighted progress (criticals count double), 1 retry per asset, 9s safety valve, sessionStorage short-circuit for repeat visits
+- LOADING SCREEN: rebuilt in WonderweaveGame — homepage bg-castle scene (seamless handoff to home), wobbling logo, parchment plaque with REAL progress % ("Weaving the world… N%"), flavor lines, TAP TO BEGIN + gold BEGIN plaque on ready (doubles as audio unlock gesture); removed 1700ms fake timer
+- NAV: BottomNav rebuilt — carved wooden storybook bar (notched top rim, safe-area padding) with 5 medallion buttons: HOME/MAP/CODEX/RELICS/DAILY; active = raised gold medallion + glow; daily badge with glow pulse; NavTab now includes 'home'
+- CHAPTER BACK BUG: root cause = decorative <header>/<div class=ribbon-wrap> intercepting taps (reproduced via agent-browser: "covered by header.relative.z-20"); fixed globally (.ribbon-wrap pointer-events:none) + ChapterScreen header pointer-events-none + back button z-30
+- JOURNEYS: all level exits (pause QUIT TO HOME, win dialog HOME, lose dialog HOME, daily CONTINUE) → HOME screen; Atlas back arrow → Home; PLAY continues highestUnlocked; nav Home tab highlights on home
+- HOMEPAGE: logo anim-wobble, tagline anim-sway-soft, PLAY upgraded to .play-hero (gold-trimmed leaf plaque + star asset + ring pulse), Pip mascot on deco-platform with tap-to-hop (anim-hop + squeak), drifting deco clouds, 9 leaves + 9 fireflies + twinkles kept
+- LORE PAGE: rows were near-invisible (settings-row on dark bg) + dead taps; now solid codex-card parchment rows, tappable → detail modal (numeral ornament, title/sub/desc/how), staggered anim-rise-in, mystery shake for locked, per-tab flavor line
+- DIALOGS/REWARDS: levelRewards now stars*20 + floor(score/500) (readable); replayRewards consolation (5+2*stars, NO boosters) unless record improved — farming closed; improved flag plumbed through handleWin (was dropped — note never showed, fixed); REWARDS caption + flex-wrap chips + consolation explainer; all exit buttons relabeled Home
+- SMOOTHNESS: swap 190→150ms, invalid 190→160ms, pop 250→200ms, gravity waits 430+26c→390+22c, deal 480+26c→440+22c, tile fall 240→230ms springier curve, spawn 430→400ms, willChange:transform on tiles
+- MOBILE: ww-app-root (overscroll-behavior:none, user-select none, img drag none), viewportFit:cover for safe areas, nav env(safe-area-inset-bottom)
+- E2E (agent-browser 430x860 + 1280x800): real loader shown at 23% mid-load → TAP TO BEGIN → home; bunny hop; all 5 nav tabs; atlas→chapter→BACK WORKS; play 1-1 via real mouse drags (45+ swaps, invalid bounce free) → FOLIO SEALED 3★ 5,080 (+1900/19 moves ✓, ✦+70 ✓ Lens+1 Null+1 ✓) → HOME; pause QUIT TO HOME → HOME; lore cards + detail modal; relics/daily/instruments/howto; stage 1-2 collect 23 ember first-clear (+69 ✓); 1-1 replay consolation (✦+9 only + "beat your best" note ✓); DAILY PAGE SEALED (✦+100, streak chip, badge cleared) → CONTINUE → HOME; PLAY → STAGE 1-3 progression; desktop 1280x800 centered column; zero console errors; tsc+lint clean (examples/skills pre-existing only)
+
+Stage Summary:
+- Wonderweave v3.1: 1.0MB WebP art pipeline + true-progress loader, in-game wooden nav with Home tab, fixed lore page + chapter back + quit-to-home journeys, living homepage (wobble/hop/fireflies/leaves), fair reward economy with anti-farming, snappier Candy Crush pacing, mobile safe-areas + overscroll lock — all journeys browser-verified green

@@ -133,17 +133,35 @@ function splitLoreName(name: string): { numeral: string; title: string } {
   return { numeral: '?', title: name }
 }
 
-function LoreList({ items, found }: { items: CodexItem[]; found: Set<string> }) {
+function LoreList({
+  items,
+  found,
+  shakeId,
+  onTap,
+}: {
+  items: CodexItem[]
+  found: Set<string>
+  shakeId: string | null
+  onTap: (item: CodexItem) => void
+}) {
   return (
-    <div className="flex flex-col gap-2">
-      {items.map((item) => {
+    <div className="flex flex-col gap-2" role="list" aria-label="Recovered lore chapters">
+      {items.map((item, i) => {
         const isFound = found.has(item.id)
         const { numeral, title } = splitLoreName(item.name)
         return (
-          <div
+          <button
             key={item.id}
-            className={`settings-row ${isFound ? '' : 'codex-card-locked'}`}
-            title={isFound ? item.name : 'Undiscovered chapter'}
+            type="button"
+            role="listitem"
+            onClick={() => onTap(item)}
+            aria-label={isFound ? `Chapter ${numeral} — ${title}. ${item.desc}` : `Undiscovered chapter ${numeral}`}
+            className={cn(
+              'codex-card px-3 py-2.5 text-left cursor-pointer anim-rise-in active:scale-[0.985]',
+              !isFound && 'codex-card-locked',
+              shakeId === item.id && 'anim-shake',
+            )}
+            style={{ animationDelay: `${Math.min(i * 55, 500)}ms` }}
           >
             {isFound ? (
               <span className="font-display text-xl font-black text-[#a9721f] w-9 text-center shrink-0" aria-hidden>
@@ -156,13 +174,22 @@ function LoreList({ items, found }: { items: CodexItem[]; found: Set<string> }) 
             )}
             <span className="flex-1 min-w-0">
               <span className="block font-display font-bold text-sm text-[#5d3a1a] leading-snug">
-                {isFound ? title : '???'}
+                {isFound ? title : 'A chapter yet unwoven…'}
               </span>
               {isFound ? (
-                <span className="block text-xs italic text-[#7a5c34] leading-snug mt-0.5">{item.desc}</span>
-              ) : null}
+                <span className="block text-xs italic text-[#7a5c34] leading-snug mt-0.5 line-clamp-2">{item.desc}</span>
+              ) : (
+                <span className="block text-xs italic text-[#8a7a5c] leading-snug mt-0.5">Tap to inspect — locked</span>
+              )}
             </span>
-          </div>
+            {isFound && (
+              <span className="text-[#a97b42] shrink-0" aria-hidden>
+                <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="m9 5 7 7-7 7" />
+                </svg>
+              </span>
+            )}
+          </button>
         )
       })}
     </div>
@@ -214,6 +241,13 @@ export function CodexScreen({ onBack }: { onBack: () => void }) {
         </div>
 
         <main className="flex-1 min-h-0 overflow-y-auto ww-scroll px-4 pt-3 pb-2">
+          <p className="text-center text-[11px] italic text-[#d9c79a]/80 mb-3" aria-hidden>
+            {tab === 'lumens'
+              ? 'Every charm holds a name — gather them to learn it.'
+              : tab === 'entities'
+                ? 'The isles are never truly empty…'
+                : 'Twelve chapters of a story the world forgot.'}
+          </p>
           {tab === 'lumens' && (
             <div role="tabpanel" aria-label="Lumens collection">
               <LumenGrid items={LUMEN_ITEMS} found={found} shakeId={shakeId} onTap={handleTap} />
@@ -226,7 +260,7 @@ export function CodexScreen({ onBack }: { onBack: () => void }) {
           )}
           {tab === 'lore' && (
             <div role="tabpanel" aria-label="Recovered lore">
-              <LoreList items={LORE_ITEMS} found={found} />
+              <LoreList items={LORE_ITEMS} found={found} shakeId={shakeId} onTap={handleTap} />
             </div>
           )}
 
@@ -242,11 +276,20 @@ export function CodexScreen({ onBack }: { onBack: () => void }) {
       {detail && (
         <ModalShell onClose={() => setDetail(null)} labelledBy="codex-detail-title">
           <ParchmentPanel className="p-6 text-center">
-            <span className="codex-icon-cell w-20 h-20 mx-auto flex items-center justify-center mb-3">
-              <img src={detail.icon ?? ''} alt="" draggable={false} className="w-14 h-14 object-contain" />
-            </span>
+            {detail.icon ? (
+              <span className="codex-icon-cell w-20 h-20 mx-auto flex items-center justify-center mb-3">
+                <img src={detail.icon} alt="" draggable={false} className="w-14 h-14 object-contain" />
+              </span>
+            ) : (
+              <span
+                className="w-20 h-20 mx-auto mb-3 rounded-xl flex items-center justify-center font-display text-3xl font-black text-[#a9721f]"
+                aria-hidden
+              >
+                {splitLoreName(detail.name).numeral}
+              </span>
+            )}
             <h3 id="codex-detail-title" className="font-display text-2xl font-extrabold text-[#5d3a1a] tracking-wide">
-              {detail.name}
+              {detail.tab === 'lore' ? splitLoreName(detail.name).title : detail.name}
             </h3>
             <p className="text-sm italic text-[#7a5c34] mt-0.5">{detail.sub}</p>
             <hr className="ww-divider my-3" />

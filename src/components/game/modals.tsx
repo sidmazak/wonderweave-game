@@ -71,7 +71,7 @@ export function PauseModal({
             <WoodButton variant="leaf" onClick={onResume}>Resume</WoodButton>
             <WoodButton onClick={onRestart}>Restart</WoodButton>
             <WoodButton onClick={onOptions}>Options</WoodButton>
-            <WoodButton variant="berry" onClick={onQuit}>{isDaily ? 'Daily Folio' : 'Quit to Atlas'}</WoodButton>
+            <WoodButton variant="berry" onClick={onQuit}>{isDaily ? 'Quit to Home' : 'Quit to Home'}</WoodButton>
           </div>
           <p className="text-[11px] text-[#8a6a3a] mt-4 italic">The threads wait patiently…</p>
         </ParchmentPanel>
@@ -150,27 +150,33 @@ export function FolioSealedModal({
 
           {/* rewards */}
           {rewards && (rewards.lumens > 0 || rewards.lens > 0 || rewards.null > 0) && (
-            <div className="flex items-center justify-center gap-2 mb-4" aria-label="Rewards earned">
-              {rewards.lumens > 0 && (
-                <span className="hud-pill rounded-full px-2.5 py-1 text-xs font-bold flex items-center gap-1">
-                  <span className="lumen-gem w-4 h-4 rounded-full flex items-center justify-center text-[9px] text-white" aria-hidden>
-                    ✦
+            <div className="mb-4" aria-label="Rewards earned">
+              <p className="text-[9px] uppercase tracking-[0.3em] text-[#8a6a3a] font-bold mb-1.5">Rewards</p>
+              <div className="flex items-center justify-center gap-1.5 flex-wrap">
+                {rewards.lumens > 0 && (
+                  <span className="hud-pill rounded-full px-2.5 py-1 text-xs font-bold flex items-center gap-1">
+                    <span className="lumen-gem w-4 h-4 rounded-full flex items-center justify-center text-[9px] text-white" aria-hidden>
+                      ✦
+                    </span>
+                    +{rewards.lumens}
                   </span>
-                  +{rewards.lumens}
-                </span>
-              )}
-              {rewards.lens > 0 && (
-                <span className="hud-pill rounded-full px-2.5 py-1 text-xs font-bold flex items-center gap-1">
-                  <img src={A('deco-lamp')} alt="" className="w-4 h-4 object-contain" draggable={false} /> Lens +{rewards.lens}
-                </span>
-              )}
-              {rewards.null > 0 && (
-                <span className="hud-pill rounded-full px-2.5 py-1 text-xs font-bold flex items-center gap-1">
-                  <img src={A('icon-close')} alt="" className="w-3.5 h-3.5 object-contain" draggable={false} /> Null +{rewards.null}
-                </span>
-              )}
-              {typeof rewards.streak === 'number' && (
-                <span className="hud-pill rounded-full px-2.5 py-1 text-xs font-bold">🔥 Streak {rewards.streak}</span>
+                )}
+                {rewards.lens > 0 && (
+                  <span className="hud-pill rounded-full px-2.5 py-1 text-xs font-bold flex items-center gap-1">
+                    <img src={A('deco-lamp')} alt="" className="w-4 h-4 object-contain" draggable={false} /> Lens +{rewards.lens}
+                  </span>
+                )}
+                {rewards.null > 0 && (
+                  <span className="hud-pill rounded-full px-2.5 py-1 text-xs font-bold flex items-center gap-1">
+                    <img src={A('icon-close')} alt="" className="w-3.5 h-3.5 object-contain" draggable={false} /> Null +{rewards.null}
+                  </span>
+                )}
+                {typeof rewards.streak === 'number' && rewards.streak > 0 && (
+                  <span className="hud-pill rounded-full px-2.5 py-1 text-xs font-bold">🔥 Streak {rewards.streak}</span>
+                )}
+              </div>
+              {rewards.improved === false && (
+                <p className="text-[10px] italic text-[#8a6a3a] mt-1.5">A gentle charm for re-visiting — beat your best for full rewards.</p>
               )}
             </div>
           )}
@@ -186,7 +192,7 @@ export function FolioSealedModal({
             )}
             <div className="flex justify-center gap-2">
               <WoodButton size="sm" onClick={onReplay} className="flex-1">Retry</WoodButton>
-              <WoodButton size="sm" onClick={onExit} className="flex-1">{isDaily ? 'Daily' : 'Atlas'}</WoodButton>
+              <WoodButton size="sm" onClick={onExit} className="flex-1">Home</WoodButton>
             </div>
           </div>
         </ParchmentPanel>
@@ -225,7 +231,7 @@ export function FolioLostModal({
         </p>
         <div className="flex flex-col gap-2.5 max-w-[250px] mx-auto">
           <WoodButton variant="leaf" onClick={onReplay}>Try Again</WoodButton>
-          <WoodButton onClick={onExit}>{isDaily ? 'Daily Folio' : 'Atlas'}</WoodButton>
+          <WoodButton onClick={onExit}>Home</WoodButton>
         </div>
       </ParchmentPanel>
     </Modal>

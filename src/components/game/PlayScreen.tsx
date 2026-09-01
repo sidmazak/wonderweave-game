@@ -46,6 +46,8 @@ export interface RewardSummary {
   lens: number
   null: number
   streak?: number
+  /** false when this seal merely replayed a mastered stage (consolation rewards) */
+  improved?: boolean
 }
 
 interface Floater {
@@ -209,7 +211,7 @@ export function PlayScreen({
     // lore follows the 12 core themes so echo chapters still unlock them
     if (level.chapter > 0) discover(`lore:${(((level.chapter - 1) % 12) + 1)}`)
     clearSpawnedNextFrame()
-    const t = setTimeout(() => lock(false), 480 + level.cols * 26)
+    const t = setTimeout(() => lock(false), 440 + level.cols * 22)
     return () => clearTimeout(t)
   }, [clearSpawnedNextFrame, lock, level.cols])
 
@@ -238,7 +240,7 @@ export function PlayScreen({
     setPaused(false)
     pausedRef.current = false
     lock(true)
-    setTimeout(() => lock(false), 480 + level.cols * 26)
+    setTimeout(() => lock(false), 440 + level.cols * 22)
   }, [clearSpawnedNextFrame, level, lock, setArmed, setGridBoth, setSelectedBoth])
 
   /* ------- helpers ------- */
@@ -344,14 +346,14 @@ export function PlayScreen({
       setGridBoth(g)
       sfx.pop(cascade)
       vibrate(12)
-      await sleep(250)
+      await sleep(200)
 
       // clear + gravity
       applyClear(g, plan)
       const grav = applyGravity(g, level.types)
       setGridBoth(g)
       if (grav.spawnedIds.length > 0) {
-        await sleep(430 + level.cols * 26 + 60)
+        await sleep(390 + level.cols * 22)
         const g2 = cloneGrid(gridRef.current)
         let dirty = false
         for (const row of g2) {
@@ -364,7 +366,7 @@ export function PlayScreen({
         }
         if (dirty) setGridBoth(g2)
       } else {
-        await sleep(300)
+        await sleep(230)
       }
 
       // combo banner
@@ -470,7 +472,7 @@ export function PlayScreen({
       swapped[b.r][b.c] = { ...ta }
       setGridBoth(swapped)
       sfx.swap()
-      await sleep(190)
+      await sleep(150)
 
       const g1 = gridRef.current
       const prismInvolved = ta.special === 'prism' || tb.special === 'prism'
@@ -482,7 +484,7 @@ export function PlayScreen({
       if (!valid) {
         setGridBoth(g0)
         sfx.invalid()
-        await sleep(190)
+        await sleep(160)
         lock(false)
         return
       }
@@ -589,13 +591,13 @@ export function PlayScreen({
       }
       t.clearing = true
       setGridBoth(g)
-      await sleep(230)
+      await sleep(200)
 
       applyClear(g, { cells: new Set([key(cell.r, cell.c)]), promotions: new Map() })
       const grav = applyGravity(g, level.types)
       setGridBoth(g)
-      if (grav.spawnedIds.length > 0) await sleep(430 + level.cols * 26 + 60)
-      else await sleep(280)
+      if (grav.spawnedIds.length > 0) await sleep(390 + level.cols * 22)
+      else await sleep(240)
       const g2 = cloneGrid(gridRef.current)
       let dirty = false
       for (const row of g2) {
@@ -1079,9 +1081,10 @@ const TileView = React.memo(function TileView({
         height: `${100 / rows}%`,
         transform: `translate(${c * 100}%, ${(spawned ? r - rows : r) * 100}%)`,
         transition: spawned
-          ? `transform 430ms cubic-bezier(0.3, 0.85, 0.35, 1.12) ${c * 24}ms`
-          : 'transform 240ms cubic-bezier(0.3, 0.8, 0.35, 1.05)',
+          ? `transform 400ms cubic-bezier(0.3, 0.85, 0.35, 1.12) ${c * 22}ms`
+          : 'transform 230ms cubic-bezier(0.28, 0.82, 0.34, 1.06)',
         zIndex: selected ? 20 : 10,
+        willChange: 'transform',
       }}
     >
       <div

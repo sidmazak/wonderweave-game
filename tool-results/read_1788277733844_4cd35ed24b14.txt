@@ -1,0 +1,1118 @@
+     1→     1→'use client'
+     2→     2→
+     3→     3→import * as React from 'react'
+     4→     4→import { cn } from '@/lib/utils'
+     5→     5→import { A, TILE_IMG } from '@/lib/game/assets'
+     6→     6→import { TILE_META, stageTitle, chapterOf } from '@/lib/game/levels'
+     7→     7→import {
+     8→     8→  applyClear,
+     9→     9→  applyGravity,
+    10→    10→  cloneGrid,
+    11→    11→  comboLabel,
+    12→    12→  comboPlan,
+    13→    13→  createGrid,
+    14→    14→  expandSpecials,
+    15→    15→  findAllMoves,
+    16→    16→  findShapes,
+    17→    17→  hasAnyMove,
+    18→    18→  key,
+    19→    19→  planClear,
+    20→    20→  shuffleGrid,
+    21→    21→} from '@/lib/game/engine'
+    22→    22→import type { ClearPlan } from '@/lib/game/engine'
+    23→    23→import type {
+    24→    24→  BoosterKind,
+    25→    25→  BoosterInventory,
+    26→    26→  Cell,
+    27→    27→  Grid,
+    28→    28→  LevelDef,
+    29→    29→  LevelResult,
+    30→    30→  Tile,
+    31→    31→} from '@/lib/game/types'
+    32→    32→import { initAudio, sfx } from '@/lib/game/sound'
+    33→    33→import { discover, LUMEN_ID_BY_TYPE } from '@/lib/game/codex'
+    34→    34→import { useVibrate } from './settings'
+    35→    35→import { CountUp, IconButton, ProgressBar, RibbonBanner } from './ui'
+    36→    36→import { FolioSealedModal, FolioLostModal, PauseModal } from './modals'
+    37→    37→
+    38→    38→const sleep = (ms: number) => new Promise<void>((res) => setTimeout(res, ms))
+    39→    39→
+    40→    40→function adjacent(a: Cell, b: Cell): boolean {
+    41→    41→  return Math.abs(a.r - b.r) + Math.abs(a.c - b.c) === 1
+    42→    42→}
+    43→    43→
+    44→    44→export interface RewardSummary {
+    45→    45→  lumens: number
+    46→    46→  lens: number
+    47→    47→  null: number
+    48→    48→  streak?: number
+    49→    49→}
+    50→    50→
+    51→    51→interface Floater {
+    52→    52→  id: number
+    53→    53→  r: number
+    54→    54→  c: number
+    55→    55→  text: string
+    56→    56→}
+    57→    57→interface ComboInfo {
+    58→    58→  id: number
+    59→    59→  n: number
+    60→    60→  /** when set, the banner shows this special-weave name instead of the cascade multiplier */
+    61→    61→  text?: string
+    62→    62→}
+    63→    63→
+    64→    64→let floaterSeq = 1
+    65→    65→let comboSeq = 1
+    66→    66→
+    67→    67→export function PlayScreen({
+    68→    68→  level,
+    69→    69→  isDaily,
+    70→    70→  inventory,
+    71→    71→  spendBooster,
+    72→    72→  onExit,
+    73→    73→  onPlayLevel,
+    74→    74→  onWin,
+    75→    75→  onOpenInstruments,
+    76→    76→  hasNextStage,
+    77→    77→}: {
+    78→    78→  level: LevelDef
+    79→    79→  isDaily: boolean
+    80→    80→  inventory: BoosterInventory
+    81→    81→  spendBooster: (kind: BoosterKind) => boolean
+    82→    82→  onExit: () => void
+    83→    83→  onPlayLevel: (id: number) => void
+    84→    84→  onWin: (result: LevelResult) => RewardSummary
+    85→    85→  onOpenInstruments: () => void
+    86→    86→  hasNextStage: boolean
+    87→    87→}) {
+    88→    88→  const vibrate = useVibrate()
+    89→    89→
+    90→    90→  const [grid, setGrid] = React.useState<Grid>(() => {
+    91→    91→    const g = createGrid(level.rows, level.cols, level.types)
+    92→    92→    for (const row of g) for (const t of row) if (t) t.spawned = true
+    93→    93→    return g
+    94→    94→  })
+    95→    95→  const gridRef = React.useRef(grid)
+    96→    96→  const setGridBoth = React.useCallback((g: Grid) => {
+    97→    97→    gridRef.current = g
+    98→    98→    setGrid(g)
+    99→    99→  }, [])
+   100→   100→
+   101→   101→  const [score, setScore] = React.useState(0)
+   102→   102→  const scoreRef = React.useRef(0)
+   103→   103→  const [movesLeft, setMovesLeft] = React.useState(level.moves)
+   104→   104→  const movesRef = React.useRef(level.moves)
+   105→   105→  const [collected, setCollected] = React.useState<Record<string, number>>({})
+   106→   106→  const collectedRef = React.useRef<Record<string, number>>({})
+   107→   107→  const doneGoalsRef = React.useRef<Set<string>>(new Set())
+   108→   108→
+   109→   109→  const [busy, setBusy] = React.useState(true)
+   110→   110→  const busyRef = React.useRef(true)
+   111→   111→  const lock = React.useCallback((v: boolean) => {
+   112→   112→    busyRef.current = v
+   113→   113→    setBusy(v)
+   114→   114→  }, [])
+   115→   115→
+   116→   116→  const [selected, setSelected] = React.useState<Cell | null>(null)
+   117→   117→  const selectedRef = React.useRef<Cell | null>(null)
+   118→   118→  const setSelectedBoth = React.useCallback((cell: Cell | null) => {
+   119→   119→    selectedRef.current = cell
+   120→   120→    setSelected(cell)
+   121→   121→  }, [])
+   122→   122→  const [hint, setHint] = React.useState<[Cell, Cell] | null>(null)
+   123→   123→  const hintTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null)
+   124→   124→  const dragRef = React.useRef<{ startCell: Cell; x: number; y: number; done: boolean } | null>(null)
+   125→   125→
+   126→   126→  const [floaters, setFloaters] = React.useState<Floater[]>([])
+   127→   127→  const [combo, setCombo] = React.useState<ComboInfo | null>(null)
+   128→   128→  const [goalFlash, setGoalFlash] = React.useState<{ id: number } | null>(null)
+   129→   129→  const [toast, setToast] = React.useState<string | null>(null)
+   130→   130→
+   131→   131→  /* ------- board shake for big weaves ------- */
+   132→   132→  const [shakeId, setShakeId] = React.useState(0)
+   133→   133→  const shakeTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null)
+   134→   134→  const triggerShake = React.useCallback(() => {
+   135→   135→    const id = Date.now()
+   136→   136→    setShakeId(id)
+   137→   137→    if (shakeTimer.current) clearTimeout(shakeTimer.current)
+   138→   138→    shakeTimer.current = setTimeout(() => {
+   139→   139→      shakeTimer.current = null
+   140→   140→      setShakeId((cur) => (cur === id ? 0 : cur))
+   141→   141→    }, 460)
+   142→   142→  }, [])
+   143→   143→  React.useEffect(() => {
+   144→   144→    return () => {
+   145→   145→      if (shakeTimer.current) clearTimeout(shakeTimer.current)
+   146→   146→    }
+   147→   147→  }, [])
+   148→   148→
+   149→   149→  /* ------- low-moves heartbeat (3 / 2 / 1) ------- */
+   150→   150→  const urgentRef = React.useRef<number | null>(null)
+   151→   151→
+   152→   152→  const [status, setStatus] = React.useState<'playing' | 'won' | 'lost'>('playing')
+   153→   153→  const statusRef = React.useRef<'playing' | 'won' | 'lost'>('playing')
+   154→   154→  const [result, setResult] = React.useState<LevelResult | null>(null)
+   155→   155→  const [rewards, setRewards] = React.useState<RewardSummary | null>(null)
+   156→   156→  const [paused, setPaused] = React.useState(false)
+   157→   157→  const pausedRef = React.useRef(false)
+   158→   158→  const [armedBooster, setArmedBooster] = React.useState<BoosterKind | null>(null)
+   159→   159→  const armedRef = React.useRef<BoosterKind | null>(null)
+   160→   160→  const setArmed = React.useCallback((k: BoosterKind | null) => {
+   161→   161→    armedRef.current = k
+   162→   162→    setArmedBooster(k)
+   163→   163→  }, [])
+   164→   164→
+   165→   165→  const wrapRef = React.useRef<HTMLDivElement>(null)
+   166→   166→  const boardRef = React.useRef<HTMLDivElement>(null)
+   167→   167→  const [size, setSize] = React.useState({ w: 0, h: 0 })
+   168→   168→
+   169→   169→  /* ------- board sizing ------- */
+   170→   170→  React.useEffect(() => {
+   171→   171→    const el = wrapRef.current
+   172→   172→    if (!el) return
+   173→   173→    const measure = () => {
+   174→   174→      const cs = getComputedStyle(el)
+   175→   175→      const availW = el.clientWidth - parseFloat(cs.paddingLeft || '0') - parseFloat(cs.paddingRight || '0')
+   176→   176→      const availH = el.clientHeight - parseFloat(cs.paddingTop || '0') - parseFloat(cs.paddingBottom || '0')
+   177→   177→      // frame adds 2*3px border + 2*5px padding = 16px; keep a 4px slack
+   178→   178→      const target = Math.max(120, Math.min(availW - 20, (availH - 20) * (level.cols / level.rows)))
+   179→   179→      setSize({ w: target, h: (target * level.rows) / level.cols })
+   180→   180→    }
+   181→   181→    measure()
+   182→   182→    const ro = new ResizeObserver(measure)
+   183→   183→    ro.observe(el)
+   184→   184→    return () => ro.disconnect()
+   185→   185→  }, [level.rows, level.cols])
+   186→   186→
+   187→   187→  /* ------- deal animation ------- */
+   188→   188→  const clearSpawnedNextFrame = React.useCallback(() => {
+   189→   189→    requestAnimationFrame(() =>
+   190→   190→      requestAnimationFrame(() => {
+   191→   191→        const g = cloneGrid(gridRef.current)
+   192→   192→        let dirty = false
+   193→   193→        for (const row of g) {
+   194→   194→          for (const t of row) {
+   195→   195→            if (t && t.spawned) {
+   196→   196→              delete t.spawned
+   197→   197→              dirty = true
+   198→   198→            }
+   199→   199→          }
+   200→   200→        }
+   201→   201→        if (dirty) setGridBoth(g)
+   202→   202→      }),
+   203→   203→    )
+   204→   204→  }, [setGridBoth])
+   205→   205→
+   206→   206→  React.useEffect(() => {
+   207→   207→    initAudio()
+   208→   208→    discover('entity:lantern')
+   209→   209→    // lore follows the 12 core themes so echo chapters still unlock them
+   210→   210→    if (level.chapter > 0) discover(`lore:${(((level.chapter - 1) % 12) + 1)}`)
+   211→   211→    clearSpawnedNextFrame()
+   212→   212→    const t = setTimeout(() => lock(false), 480 + level.cols * 26)
+   213→   213→    return () => clearTimeout(t)
+   214→   214→  }, [clearSpawnedNextFrame, lock, level.cols])
+   215→   215→
+   216→   216→  const resetLevel = React.useCallback(() => {
+   217→   217→    const g = createGrid(level.rows, level.cols, level.types)
+   218→   218→    for (const row of g) for (const t of row) if (t) t.spawned = true
+   219→   219→    setGridBoth(g)
+   220→   220→    clearSpawnedNextFrame()
+   221→   221→    scoreRef.current = 0
+   222→   222→    setScore(0)
+   223→   223→    movesRef.current = level.moves
+   224→   224→    setMovesLeft(level.moves)
+   225→   225→    collectedRef.current = {}
+   226→   226→    setCollected({})
+   227→   227→    doneGoalsRef.current = new Set()
+   228→   228→    setSelectedBoth(null)
+   229→   229→    setArmed(null)
+   230→   230→    setHint(null)
+   231→   231→    setCombo(null)
+   232→   232→    urgentRef.current = null
+   233→   233→    setFloaters([])
+   234→   234→    setResult(null)
+   235→   235→    setRewards(null)
+   236→   236→    setStatus('playing')
+   237→   237→    statusRef.current = 'playing'
+   238→   238→    setPaused(false)
+   239→   239→    pausedRef.current = false
+   240→   240→    lock(true)
+   241→   241→    setTimeout(() => lock(false), 480 + level.cols * 26)
+   242→   242→  }, [clearSpawnedNextFrame, level, lock, setArmed, setGridBoth, setSelectedBoth])
+   243→   243→
+   244→   244→  /* ------- helpers ------- */
+   245→   245→  const showToast = React.useCallback((msg: string) => {
+   246→   246→    setToast(msg)
+   247→   247→    setTimeout(() => setToast((cur) => (cur === msg ? null : cur)), 2200)
+   248→   248→  }, [])
+   249→   249→
+   250→   250→  const addFloater = React.useCallback((r: number, c: number, text: string) => {
+   251→   251→    const id = floaterSeq++
+   252→   252→    setFloaters((f) => [...f.slice(-6), { id, r, c, text }])
+   253→   253→    setTimeout(() => setFloaters((f) => f.filter((x) => x.id !== id)), 1000)
+   254→   254→  }, [])
+   255→   255→
+   256→   256→  const showCombo = React.useCallback((n: number, text?: string) => {
+   257→   257→    const id = comboSeq++
+   258→   258→    setCombo({ id, n, text })
+   259→   259→    setTimeout(() => setCombo((cur) => (cur?.id === id ? null : cur)), 1400)
+   260→   260→  }, [])
+   261→   261→
+   262→   262→  const finishLevel = React.useCallback(
+   263→   263→    (won: boolean) => {
+   264→   264→      const bonus = won ? movesRef.current * 100 : 0
+   265→   265→      const finalScore = scoreRef.current + bonus
+   266→   266→      const stars = won ? (finalScore >= level.star3 ? 3 : finalScore >= level.star2 ? 2 : 1) : 0
+   267→   267→      const res: LevelResult = { levelId: level.id, won, score: finalScore, stars, movesLeft: movesRef.current }
+   268→   268→      statusRef.current = won ? 'won' : 'lost'
+   269→   269→      setStatus(won ? 'won' : 'lost')
+   270→   270→      setResult(res)
+   271→   271→      if (won) {
+   272→   272→        sfx.win()
+   273→   273→        for (let i = 0; i < stars; i++) setTimeout(() => sfx.star(i), 500 + i * 380)
+   274→   274→        setRewards(onWin(res))
+   275→   275→      } else {
+   276→   276→        sfx.lose()
+   277→   277→      }
+   278→   278→    },
+   279→   279→    [level, onWin],
+   280→   280→  )
+   281→   281→
+   282→   282→  const checkObjective = React.useCallback((): boolean => {
+   283→   283→    const obj = level.objective
+   284→   284→    if (obj.kind === 'score') return scoreRef.current >= (obj.score ?? Infinity)
+   285→   285→    return (obj.collect ?? []).every((goal) => (collectedRef.current[goal.type] ?? 0) >= goal.count)
+   286→   286→  }, [level])
+   287→   287→
+   288→   288→  /* ------- blast & cascade ------- */
+   289→   289→  const blast = React.useCallback(
+   290→   290→    async (plan: ClearPlan, cascade: number): Promise<void> => {
+   291→   291→      const g = cloneGrid(gridRef.current)
+   292→   292→      const cellsArr = [...plan.cells].map((k) => {
+   293→   293→        const [r, c] = k.split(',').map(Number)
+   294→   294→        return { r, c }
+   295→   295→      })
+   296→   296→      if (cellsArr.length === 0 && plan.promotions.size === 0) return
+   297→   297→
+   298→   298→      // big weaves rattle the frame
+   299→   299→      if (cellsArr.length >= 10) triggerShake()
+   300→   300→
+   301→   301→      const mult = cascade + 1
+   302→   302→      const gained = cellsArr.length * 20 * mult + plan.promotions.size * 60
+   303→   303→      scoreRef.current += gained
+   304→   304→      setScore(scoreRef.current)
+   305→   305→
+   306→   306→      // collection + codex discovery
+   307→   307→      const col = { ...collectedRef.current }
+   308→   308→      let lineHit = false
+   309→   309→      let bombHit = false
+   310→   310→      const seenTypes = new Set<string>()
+   311→   311→      for (const { r, c } of cellsArr) {
+   312→   312→        const t = g[r]?.[c]
+   313→   313→        if (!t) continue
+   314→   314→        col[t.type] = (col[t.type] ?? 0) + 1
+   315→   315→        seenTypes.add(t.type)
+   316→   316→        if (t.special === 'lineH' || t.special === 'lineV') lineHit = true
+   317→   317→        if (t.special === 'bomb') bombHit = true
+   318→   318→      }
+   319→   319→      collectedRef.current = col
+   320→   320→      setCollected(col)
+   321→   321→      if (seenTypes.size > 0) {
+   322→   322→        const lumenIds = [...seenTypes].map((t) => LUMEN_ID_BY_TYPE[t]).filter(Boolean)
+   323→   323→        if (lumenIds.length > 0) discover(...lumenIds)
+   324→   324→      }
+   325→   325→      for (const promo of plan.promotions.values()) {
+   326→   326→        if (promo.special === 'prism') discover('lumen:vitriol')
+   327→   327→      }
+   328→   328→      if (lineHit) sfx.line()
+   329→   329→      if (bombHit) sfx.bomb()
+   330→   330→
+   331→   331→      // floater at centroid
+   332→   332→      if (cellsArr.length > 0) {
+   333→   333→        const ar = cellsArr.reduce((s, x) => s + x.r, 0) / cellsArr.length
+   334→   334→        const ac = cellsArr.reduce((s, x) => s + x.c, 0) / cellsArr.length
+   335→   335→        addFloater(ar, ac, `+${gained}`)
+   336→   336→      }
+   337→   337→
+   338→   338→      // pop
+   339→   339→      for (const k of plan.cells) {
+   340→   340→        const [r, c] = k.split(',').map(Number)
+   341→   341→        const t = g[r]?.[c]
+   342→   342→        if (t) t.clearing = true
+   343→   343→      }
+   344→   344→      setGridBoth(g)
+   345→   345→      sfx.pop(cascade)
+   346→   346→      vibrate(12)
+   347→   347→      await sleep(250)
+   348→   348→
+   349→   349→      // clear + gravity
+   350→   350→      applyClear(g, plan)
+   351→   351→      const grav = applyGravity(g, level.types)
+   352→   352→      setGridBoth(g)
+   353→   353→      if (grav.spawnedIds.length > 0) {
+   354→   354→        await sleep(430 + level.cols * 26 + 60)
+   355→   355→        const g2 = cloneGrid(gridRef.current)
+   356→   356→        let dirty = false
+   357→   357→        for (const row of g2) {
+   358→   358→          for (const t of row) {
+   359→   359→            if (t && t.spawned) {
+   360→   360→              delete t.spawned
+   361→   361→              dirty = true
+   362→   362→            }
+   363→   363→          }
+   364→   364→        }
+   365→   365→        if (dirty) setGridBoth(g2)
+   366→   366→      } else {
+   367→   367→        await sleep(300)
+   368→   368→      }
+   369→   369→
+   370→   370→      // combo banner
+   371→   371→      if (mult >= 2) showCombo(mult)
+   372→   372→
+   373→   373→      // goal flash
+   374→   374→      if (level.objective.kind === 'collect') {
+   375→   375→        for (const goal of level.objective.collect ?? []) {
+   376→   376→          const done = (collectedRef.current[goal.type] ?? 0) >= goal.count
+   377→   377→          if (done && !doneGoalsRef.current.has(goal.type)) {
+   378→   378→            doneGoalsRef.current.add(goal.type)
+   379→   379→            setGoalFlash({ id: Date.now() })
+   380→   380→            sfx.specialCreate()
+   381→   381→            setTimeout(() => setGoalFlash(null), 1400)
+   382→   382→          }
+   383→   383→        }
+   384→   384→      }
+   385→   385→    },
+   386→   386→    [addFloater, level, setGridBoth, showCombo, triggerShake, vibrate],
+   387→   387→  )
+   388→   388→
+   389→   389→  const cascadeLoop = React.useCallback(
+   390→   390→    async (swapped?: Cell[]): Promise<void> => {
+   391→   391→      let cascade = 0
+   392→   392→      for (;;) {
+   393→   393→        const g = cloneGrid(gridRef.current)
+   394→   394→        const shapes = findShapes(g, cascade === 0 ? swapped : undefined)
+   395→   395→        if (shapes.length === 0) break
+   396→   396→        const plan = planClear(g, shapes, cascade === 0 ? swapped : undefined)
+   397→   397→        await blast(plan, cascade)
+   398→   398→        cascade++
+   399→   399→      }
+   400→   400→    },
+   401→   401→    [blast],
+   402→   402→  )
+   403→   403→
+   404→   404→  const activatePrism = React.useCallback(
+   405→   405→    async (a: Cell, b: Cell): Promise<void> => {
+   406→   406→      const g = gridRef.current
+   407→   407→      const ta = g[a.r]?.[a.c]
+   408→   408→      const tb = g[b.r]?.[b.c]
+   409→   409→      if (!ta || !tb) return
+   410→   410→      const aIsPrism = ta.special === 'prism'
+   411→   411→      const other = aIsPrism ? tb : ta
+   412→   412→      sfx.prism()
+   413→   413→      discover('lumen:vitriol')
+   414→   414→      const seed = new Set<string>()
+   415→   415→      if (other.special === 'prism') {
+   416→   416→        for (let r = 0; r < level.rows; r++) for (let c = 0; c < level.cols; c++) seed.add(key(r, c))
+   417→   417→      } else {
+   418→   418→        for (let r = 0; r < level.rows; r++) {
+   419→   419→          for (let c = 0; c < level.cols; c++) {
+   420→   420→            if (g[r][c]?.type === other.type) seed.add(key(r, c))
+   421→   421→          }
+   422→   422→        }
+   423→   423→      }
+   424→   424→      const cells = expandSpecials(g, seed)
+   425→   425→      await blast({ cells, promotions: new Map() }, 0)
+   426→   426→      await cascadeLoop()
+   427→   427→    },
+   428→   428→    [blast, cascadeLoop, level.rows, level.cols],
+   429→   429→  )
+   430→   430→
+   431→   431→  const afterMove = React.useCallback(async (): Promise<void> => {
+   432→   432→    if (checkObjective()) {
+   433→   433→      finishLevel(true)
+   434→   434→      return
+   435→   435→    }
+   436→   436→    if (movesRef.current <= 0) {
+   437→   437→      finishLevel(false)
+   438→   438→      return
+   439→   439→    }
+   440→   440→    if (!hasAnyMove(cloneGrid(gridRef.current))) {
+   441→   441→      showToast('The loom is stuck — reshuffling threads…')
+   442→   442→      sfx.shuffle()
+   443→   443→      const ng = shuffleGrid(cloneGrid(gridRef.current), level.types)
+   444→   444→      setGridBoth(ng)
+   445→   445→      await sleep(450)
+   446→   446→      await cascadeLoop()
+   447→   447→    }
+   448→   448→  }, [cascadeLoop, checkObjective, finishLevel, level.types, setGridBoth, showToast])
+   449→   449→
+   450→   450→  /* ------- swap flow ------- */
+   451→   451→  const attemptSwap = React.useCallback(
+   452→   452→    async (a: Cell, b: Cell, opts?: { free?: boolean }): Promise<void> => {
+   453→   453→      if (busyRef.current || pausedRef.current || statusRef.current !== 'playing') return
+   454→   454→      if (!a || !b || typeof a.r !== 'number' || typeof b.r !== 'number') return
+   455→   455→      if (!adjacent(a, b)) return
+   456→   456→      lock(true)
+   457→   457→      setSelectedBoth(null)
+   458→   458→      setHint(null)
+   459→   459→
+   460→   460→      const g0 = cloneGrid(gridRef.current)
+   461→   461→      const ta = g0[a.r]?.[a.c]
+   462→   462→      const tb = g0[b.r]?.[b.c]
+   463→   463→      if (!ta || !tb) {
+   464→   464→        lock(false)
+   465→   465→        return
+   466→   466→      }
+   467→   467→
+   468→   468→      const swapped = cloneGrid(g0)
+   469→   469→      swapped[a.r][a.c] = { ...tb }
+   470→   470→      swapped[b.r][b.c] = { ...ta }
+   471→   471→      setGridBoth(swapped)
+   472→   472→      sfx.swap()
+   473→   473→      await sleep(190)
+   474→   474→
+   475→   475→      const g1 = gridRef.current
+   476→   476→      const prismInvolved = ta.special === 'prism' || tb.special === 'prism'
+   477→   477→      // the full special+special weave table — non-null only when BOTH tiles are special
+   478→   478→      const combo = comboPlan(g1, a, b)
+   479→   479→      // g1 already contains the swapped tiles, so any shape present now was created by the swap
+   480→   480→      const valid = prismInvolved || combo !== null || findShapes(g1).length > 0
+   481→   481→
+   482→   482→      if (!valid) {
+   483→   483→        setGridBoth(g0)
+   484→   484→        sfx.invalid()
+   485→   485→        await sleep(190)
+   486→   486→        lock(false)
+   487→   487→        return
+   488→   488→      }
+   489→   489→
+   490→   490→      if (!opts?.free) {
+   491→   491→        movesRef.current -= 1
+   492→   492→        setMovesLeft(movesRef.current)
+   493→   493→        // heartbeat as the loom runs out of moves (3 / 2 / 1)
+   494→   494→        if (movesRef.current >= 1 && movesRef.current <= 3 && urgentRef.current !== movesRef.current) {
+   495→   495→          urgentRef.current = movesRef.current
+   496→   496→          sfx.urgent()
+   497→   497→        }
+   498→   498→      }
+   499→   499→      vibrate(10)
+   500→   500→
+   501→   501→      if (combo) {
+   502→   502→        // special + special weave: tiered fanfare, banner, bonus, then the blast
+   503→   503→        const tier = combo.kind === 'blackhole' ? 3 : combo.kind === 'lineStorm' || combo.kind === 'bombStorm' ? 2 : 1
+   504→   504→        sfx.combo(tier)
+   505→   505→        vibrate(24)
+   506→   506→        showCombo(1, comboLabel(combo.kind))
+   507→   507→        scoreRef.current += combo.bonus
+   508→   508→        setScore(scoreRef.current)
+   509→   509→        addFloater((a.r + b.r) / 2, (a.c + b.c) / 2, `+${combo.bonus}`)
+   510→   510→        triggerShake()
+   511→   511→        await blast({ cells: expandSpecials(g1, combo.cells), promotions: new Map() }, 0)
+   512→   512→        await cascadeLoop()
+   513→   513→      } else if (prismInvolved) {
+   514→   514→        await activatePrism(a, b)
+   515→   515→      } else {
+   516→   516→        await cascadeLoop([a, b])
+   517→   517→      }
+   518→   518→      await afterMove()
+   519→   519→      lock(false)
+   520→   520→    },
+   521→   521→    [
+   522→   522→      activatePrism,
+   523→   523→      addFloater,
+   524→   524→      afterMove,
+   525→   525→      blast,
+   526→   526→      cascadeLoop,
+   527→   527→      lock,
+   528→   528→      setGridBoth,
+   529→   529→      setSelectedBoth,
+   530→   530→      showCombo,
+   531→   531→      triggerShake,
+   532→   532→      vibrate,
+   533→   533→    ],
+   534→   534→  )
+   535→   535→
+   536→   536→  /* ------- boosters ------- */
+   537→   537→  const armBooster = React.useCallback(
+   538→   538→    (kind: BoosterKind) => {
+   539→   539→      if (busyRef.current || pausedRef.current || statusRef.current !== 'playing') return
+   540→   540→      if (inventory[kind] <= 0) return
+   541→   541→      initAudio()
+   542→   542→      if (kind === 'lens') {
+   543→   543→        // LENS executes the weave instantly (no move spent)
+   544→   544→        if (!spendBooster('lens')) return
+   545→   545→        setArmed(null)
+   546→   546→        setSelectedBoth(null)
+   547→   547→        sfx.lens()
+   548→   548→        const moves = findAllMoves(cloneGrid(gridRef.current))
+   549→   549→        if (moves.length === 0) {
+   550→   550→          showToast('No threads available — the loom reshuffles…')
+   551→   551→          const ng = shuffleGrid(cloneGrid(gridRef.current), level.types)
+   552→   552→          setGridBoth(ng)
+   553→   553→          return
+   554→   554→        }
+   555→   555→        void attemptSwap(moves[0][0], moves[0][1], { free: true })
+   556→   556→        return
+   557→   557→      }
+   558→   558→      sfx.booster()
+   559→   559→      if (armedRef.current === 'null') {
+   560→   560→        setArmed(null)
+   561→   561→      } else {
+   562→   562→        setArmed('null')
+   563→   563→        showToast('Tap any charm to unweave it…')
+   564→   564→      }
+   565→   565→      setSelectedBoth(null)
+   566→   566→    },
+   567→   567→    [attemptSwap, inventory, level.types, setArmed, setGridBoth, setSelectedBoth, showToast, spendBooster],
+   568→   568→  )
+   569→   569→
+   570→   570→  const nullifyCell = React.useCallback(
+   571→   571→    async (cell: Cell): Promise<void> => {
+   572→   572→      if (busyRef.current || statusRef.current !== 'playing') return
+   573→   573→      if (!spendBooster('null')) {
+   574→   574→        setArmed(null)
+   575→   575→        return
+   576→   576→      }
+   577→   577→      lock(true)
+   578→   578→      setArmed(null)
+   579→   579→      setSelectedBoth(null)
+   580→   580→      setHint(null)
+   581→   581→      sfx.nullify()
+   582→   582→      vibrate(16)
+   583→   583→
+   584→   584→      const g = cloneGrid(gridRef.current)
+   585→   585→      const t = g[cell.r]?.[cell.c]
+   586→   586→      if (!t) {
+   587→   587→        lock(false)
+   588→   588→        return
+   589→   589→      }
+   590→   590→      t.clearing = true
+   591→   591→      setGridBoth(g)
+   592→   592→      await sleep(230)
+   593→   593→
+   594→   594→      applyClear(g, { cells: new Set([key(cell.r, cell.c)]), promotions: new Map() })
+   595→   595→      const grav = applyGravity(g, level.types)
+   596→   596→      setGridBoth(g)
+   597→   597→      if (grav.spawnedIds.length > 0) await sleep(430 + level.cols * 26 + 60)
+   598→   598→      else await sleep(280)
+   599→   599→      const g2 = cloneGrid(gridRef.current)
+   600→   600→      let dirty = false
+   601→   601→      for (const row of g2) {
+   602→   602→        for (const tl of row) {
+   603→   603→          if (tl && tl.spawned) {
+   604→   604→            delete tl.spawned
+   605→   605→            dirty = true
+   606→   606→          }
+   607→   607→        }
+   608→   608→      }
+   609→   609→      if (dirty) setGridBoth(g2)
+   610→   610→
+   611→   611→      await cascadeLoop()
+   612→   612→      await afterMove()
+   613→   613→      lock(false)
+   614→   614→    },
+   615→   615→    [afterMove, cascadeLoop, level.cols, level.types, lock, setArmed, setGridBoth, setSelectedBoth, spendBooster, vibrate],
+   616→   616→  )
+   617→   617→
+   618→   618→  /* ------- pointer input ------- */
+   619→   619→  const cellFromPoint = React.useCallback(
+   620→   620→    (x: number, y: number): Cell | null => {
+   621→   621→      const el = boardRef.current
+   622→   622→      if (!el) return null
+   623→   623→      const rect = el.getBoundingClientRect()
+   624→   624→      const c = Math.floor(((x - rect.left) / rect.width) * level.cols)
+   625→   625→      const r = Math.floor(((y - rect.top) / rect.height) * level.rows)
+   626→   626→      if (r < 0 || c < 0 || r >= level.rows || c >= level.cols) return null
+   627→   627→      return { r, c }
+   628→   628→    },
+   629→   629→    [level.cols, level.rows],
+   630→   630→  )
+   631→   631→
+   632→   632→  const resetHintTimer = React.useCallback(() => {
+   633→   633→    if (hintTimer.current) clearTimeout(hintTimer.current)
+   634→   634→    setHint(null)
+   635→   635→    hintTimer.current = setTimeout(() => {
+   636→   636→      if (busyRef.current || pausedRef.current || statusRef.current !== 'playing') return
+   637→   637→      try {
+   638→   638→        const moves = findAllMoves(cloneGrid(gridRef.current))
+   639→   639→        if (moves.length > 0) setHint(moves[Math.floor(Math.random() * moves.length)])
+   640→   640→      } catch {
+   641→   641→        /* never let the hint probe crash the game */
+   642→   642→      }
+   643→   643→    }, 6000)
+   644→   644→  }, [])
+   645→   645→
+   646→   646→  React.useEffect(() => {
+   647→   647→    resetHintTimer()
+   648→   648→    return () => {
+   649→   649→      if (hintTimer.current) clearTimeout(hintTimer.current)
+   650→   650→    }
+   651→   651→    // re-arm after activity
+   652→   652→  }, [score, movesLeft, busy, resetHintTimer])
+   653→   653→
+   654→   654→  const onPointerDown = (e: React.PointerEvent) => {
+   655→   655→    if (busyRef.current || pausedRef.current || statusRef.current !== 'playing') return
+   656→   656→    const cell = cellFromPoint(e.clientX, e.clientY)
+   657→   657→    if (!cell) return
+   658→   658→    resetHintTimer()
+   659→   659→    if (armedRef.current === 'null') {
+   660→   660→      void nullifyCell(cell)
+   661→   661→      return
+   662→   662→    }
+   663→   663→    dragRef.current = { startCell: cell, x: e.clientX, y: e.clientY, done: false }
+   664→   664→  }
+   665→   665→  const onPointerMove = (e: React.PointerEvent) => {
+   666→   666→    const d = dragRef.current
+   667→   667→    if (!d || d.done || busyRef.current || pausedRef.current || statusRef.current !== 'playing') return
+   668→   668→    const dx = e.clientX - d.x
+   669→   669→    const dy = e.clientY - d.y
+   670→   670→    const el = boardRef.current
+   671→   671→    if (!el) return
+   672→   672→    const cellPx = el.getBoundingClientRect().width / level.cols
+   673→   673→    if (Math.hypot(dx, dy) >= cellPx * 0.35) {
+   674→   674→      d.done = true
+   675→   675→      const dir =
+   676→   676→        Math.abs(dx) > Math.abs(dy)
+   677→   677→          ? { dr: 0, dc: dx > 0 ? 1 : -1 }
+   678→   678→          : { dr: dy > 0 ? 1 : -1, dc: 0 }
+   679→   679→      const target = { r: d.startCell.r + dir.dr, c: d.startCell.c + dir.dc }
+   680→   680→      if (target.r >= 0 && target.c >= 0 && target.r < level.rows && target.c < level.cols) {
+   681→   681→        setSelectedBoth(null)
+   682→   682→        void attemptSwap(d.startCell, target)
+   683→   683→      }
+   684→   684→    }
+   685→   685→  }
+   686→   686→
+   687→   687→  const onPointerUp = (e: React.PointerEvent) => {
+   688→   688→    const d = dragRef.current
+   689→   689→    dragRef.current = null
+   690→   690→    if (!d || d.done) return
+   691→   691→    if (busyRef.current || pausedRef.current || statusRef.current !== 'playing') return
+   692→   692→    const cell = cellFromPoint(e.clientX, e.clientY)
+   693→   693→    if (!cell) {
+   694→   694→      setSelectedBoth(null)
+   695→   695→      return
+   696→   696→    }
+   697→   697→    if (armedRef.current === 'null') {
+   698→   698→      void nullifyCell(cell)
+   699→   699→      return
+   700→   700→    }
+   701→   701→    // pure tap/select logic — side effects happen outside any state updater
+   702→   702→    const sel = selectedRef.current
+   703→   703→    if (!sel) {
+   704→   704→      sfx.select()
+   705→   705→      setSelectedBoth(cell)
+   706→   706→      return
+   707→   707→    }
+   708→   708→    if (sel.r === cell.r && sel.c === cell.c) {
+   709→   709→      setSelectedBoth(null)
+   710→   710→      return
+   711→   711→    }
+   712→   712→    if (adjacent(sel, cell)) {
+   713→   713→      const a = sel
+   714→   714→      setSelectedBoth(null)
+   715→   715→      void attemptSwap(a, cell)
+   716→   716→      return
+   717→   717→    }
+   718→   718→    sfx.select()
+   719→   719→    setSelectedBoth(cell)
+   720→   720→  }
+   721→   721→
+   722→   722→  /* ------- render ------- */
+   723→   723→  const obj = level.objective
+   724→   724→  const bgKey = level.chapter > 0 ? chapterOf(level.id).bg : 'bg-altar'
+   725→   725→  const stageLabel = isDaily ? 'DAILY PAGE' : `STAGE ${stageTitle(level)}`
+   726→   726→
+   727→   727→  /* static cell sockets — rebuilt only when the board size changes, not on every state change */
+   728→   728→  const sockets = React.useMemo(
+   729→   729→    () =>
+   730→   730→      size.w > 0
+   731→   731→        ? Array.from({ length: level.rows * level.cols }).map((_, i) => {
+   732→   732→            const r = Math.floor(i / level.cols)
+   733→   733→            const c = i % level.cols
+   734→   734→            return (
+   735→   735→              <div
+   736→   736→                key={i}
+   737→   737→                aria-hidden
+   738→   738→                className="absolute"
+   739→   739→                style={{
+   740→   740→                  left: `${(c * 100) / level.cols}%`,
+   741→   741→                  top: `${(r * 100) / level.rows}%`,
+   742→   742→                  width: `${100 / level.cols}%`,
+   743→   743→                  height: `${100 / level.rows}%`,
+   744→   744→                }}
+   745→   745→              >
+   746→   746→                <div className={cn('absolute inset-[5%] board-cell', (r + c) % 2 === 1 && 'board-cell-alt')} />
+   747→   747→              </div>
+   748→   748→            )
+   749→   749→          })
+   750→   750→        : null,
+   751→   751→    [level.rows, level.cols, size.w],
+   752→   752→  )
+   753→   753→
+   754→   754→  return (
+   755→   755→    <div className="relative flex-1 flex flex-col overflow-hidden ww-tap-none">
+   756→   756→      {/* backdrop */}
+   757→   757→      <div aria-hidden className="absolute inset-0">
+   758→   758→        <img src={A(bgKey)} alt="" className="w-full h-full object-cover" draggable={false} />
+   759→   759→        <div className="absolute inset-0 bg-gradient-to-b from-[#0e1c14]/45 via-[#0e1c14]/20 to-[#0e1c14]/55" />
+   760→   760→      </div>
+   761→   761→
+   762→   762→      {/* HUD — ribbon row */}
+   763→   763→      <header className="relative z-20 flex items-start gap-2 px-3 pt-3">
+   764→   764→        <IconButton
+   765→   765→          img={A('icon-pause')}
+   766→   766→          label="Pause"
+   767→   767→          className="mt-1.5"
+   768→   768→          onClick={() => {
+   769→   769→            discover('entity:rest')
+   770→   770→            pausedRef.current = true
+   771→   771→            setPaused(true)
+   772→   772→          }}
+   773→   773→        />
+   774→   774→        <div className="flex-1 min-w-0 flex justify-center">
+   775→   775→          <RibbonBanner title={stageLabel} subtitle={level.name} size="sm" className="w-full max-w-[300px]" />
+   776→   776→        </div>
+   777→   777→        <div
+   778→   778→          className="hud-pill rounded-2xl px-3 py-1 flex flex-col items-center leading-none mt-0.5 min-w-[64px]"
+   779→   779→          aria-label={`${movesLeft} moves left`}
+   780→   780→        >
+   781→   781→          <span className="text-[9px] uppercase tracking-widest text-[#d9c79a] font-bold">Moves</span>
+   782→   782→          <span
+   783→   783→            className={cn(
+   784→   784→              'font-display text-xl font-extrabold tabular-nums',
+   785→   785→              movesLeft <= 3 && 'text-[#ff9d7a] animate-pulse',
+   786→   786→            )}
+   787→   787→          >
+   788→   788→            {movesLeft}
+   789→   789→          </span>
+   790→   790→        </div>
+   791→   791→      </header>
+   792→   792→
+   793→   793→      {/* goals + score */}
+   794→   794→      <section className="relative z-20 px-3 mt-2 flex items-stretch gap-2" aria-label="Score and objectives">
+   795→   795→        <div className="goal-card flex-1 min-w-0 px-2.5 py-1.5 flex flex-wrap items-center gap-x-3 gap-y-1">
+   796→   796→          {obj.kind === 'collect'
+   797→   797→            ? (obj.collect ?? []).map((goal) => {
+   798→   798→                const have = Math.min(collected[goal.type] ?? 0, goal.count)
+   799→   799→                const done = have >= goal.count
+   800→   800→                return (
+   801→   801→                  <div key={goal.type} className="flex items-center gap-1.5 min-w-[118px] flex-1">
+   802→   802→                    <img
+   803→   803→                      src={TILE_IMG[goal.type]}
+   804→   804→                      alt={TILE_META[goal.type].name}
+   805→   805→                      className="w-8 h-8 object-contain drop-shadow shrink-0"
+   806→   806→                      draggable={false}
+   807→   807→                    />
+   808→   808→                    <div className="min-w-0 flex-1">
+   809→   809→                      <p className="text-[10px] leading-tight text-[#5d3a1a] font-bold truncate">
+   810→   810→                        {done ? '✓ ' : 'Collect '}
+   811→   811→                        {goal.count} {TILE_META[goal.type].name}
+   812→   812→                        {goal.count > 1 ? '' : ''}
+   813→   813→                      </p>
+   814→   814→                      <ProgressBar value={have / goal.count} className="h-2 mt-0.5" />
+   815→   815→                      <p className={cn('text-[9px] font-bold tabular-nums', done ? 'text-[#4c8a28]' : 'text-[#7a5c34]')}>
+   816→   816→                        {have} / {goal.count}
+   817→   817→                      </p>
+   818→   818→                    </div>
+   819→   819→                  </div>
+   820→   820→                )
+   821→   821→              })
+   822→   822→            : (() => {
+   823→   823→                const target = obj.score ?? level.star3
+   824→   824→                const have = Math.min(score, target)
+   825→   825→                const done = score >= target
+   826→   826→                return (
+   827→   827→                  <div className="flex items-center gap-1.5 flex-1 min-w-[118px]">
+   828→   828→                    <img src={A('star-sparkle')} alt="" className="w-8 h-8 object-contain drop-shadow shrink-0" draggable={false} />
+   829→   829→                    <div className="min-w-0 flex-1">
+   830→   830→                      <p className="text-[10px] leading-tight text-[#5d3a1a] font-bold truncate">
+   831→   831→                        {done ? '✓ ' : ''}Weave {target.toLocaleString()} threads
+   832→   832→                      </p>
+   833→   833→                      <ProgressBar value={have / target} className="h-2 mt-0.5" />
+   834→   834→                      <p className={cn('text-[9px] font-bold tabular-nums', done ? 'text-[#4c8a28]' : 'text-[#7a5c34]')}>
+   835→   835→                        {have.toLocaleString()} / {target.toLocaleString()}
+   836→   836→                      </p>
+   837→   837→                    </div>
+   838→   838→                  </div>
+   839→   839→                )
+   840→   840→              })()}
+   841→   841→        </div>
+   842→   842→        <div className="hud-pill rounded-2xl px-3 py-1 flex flex-col items-center justify-center min-w-[92px]" aria-live="polite">
+   843→   843→          <span className="text-[9px] uppercase tracking-widest text-[#d9c79a] font-bold">Score</span>
+   844→   844→          <CountUp value={score} duration={500} className="font-display text-lg font-extrabold" />
+   845→   845→          <div className="flex gap-0.5 mt-0.5" aria-hidden>
+   846→   846→            {[0, 1, 2].map((i) => (
+   847→   847→              <img
+   848→   848→                key={i}
+   849→   849→                src={A('star-sparkle')}
+   850→   850→                alt=""
+   851→   851→                draggable={false}
+   852→   852→                className={cn('w-3 h-3 object-contain', i === 0 ? (score > 0 ? '' : 'grayscale opacity-40') : score >= (i === 1 ? level.star2 : level.star3) ? '' : 'grayscale opacity-40')}
+   853→   853→              />
+   854→   854→            ))}
+   855→   855→          </div>
+   856→   856→        </div>
+   857→   857→      </section>
+   858→   858→
+   859→   859→      {/* board */}
+   860→   860→      <main ref={wrapRef} className="relative z-10 flex-1 min-h-0 flex items-center justify-center px-3 py-2">
+   861→   861→        <div
+   862→   862→          className={cn('board-frame', shakeId > 0 && 'anim-board-shake')}
+   863→   863→          style={{ width: size.w + 12, height: size.h + 12, padding: 5, opacity: size.w > 0 ? 1 : 0 }}
+   864→   864→        >
+   865→   865→          <div
+   866→   866→            ref={boardRef}
+   867→   867→            role="application"
+   868→   868→            aria-label={`${level.rows} by ${level.cols} weaving board. Drag or tap charms to swap.`}
+   869→   869→            className={cn(
+   870→   870→              'relative w-full h-full rounded-[0.7rem] overflow-hidden touch-none select-none',
+   871→   871→              armedBooster === 'null' && 'cursor-crosshair',
+   872→   872→            )}
+   873→   873→            style={{
+   874→   874→              backgroundImage: 'linear-gradient(180deg, #1c2e1f 0%, #16251a 100%)',
+   875→   875→            }}
+   876→   876→            onPointerDown={onPointerDown}
+   877→   877→            onPointerMove={onPointerMove}
+   878→   878→            onPointerUp={onPointerUp}
+   879→   879→            onPointerCancel={() => (dragRef.current = null)}
+   880→   880→            onContextMenu={(e) => e.preventDefault()}
+   881→   881→          >
+   882→   882→            {/* cell sockets (memoized) */}
+   883→   883→            {sockets}
+   884→   884→
+   885→   885→            {grid.flatMap((row, r) =>
+   886→   886→              row.map((t, c) => {
+   887→   887→                if (!t) return null
+   888→   888→                return (
+   889→   889→                  <TileView
+   890→   890→                    key={t.id}
+   891→   891→                    tile={t}
+   892→   892→                    r={r}
+   893→   893→                    c={c}
+   894→   894→                    rows={level.rows}
+   895→   895→                    cols={level.cols}
+   896→   896→                    selected={!!selected && selected.r === r && selected.c === c}
+   897→   897→                    hinted={!!hint && hint.some((h) => h.r === r && h.c === c)}
+   898→   898→                  />
+   899→   899→                )
+   900→   900→              }),
+   901→   901→            )}
+   902→   902→
+   903→   903→            {/* floaters */}
+   904→   904→            {floaters.map((f) => (
+   905→   905→              <div
+   906→   906→                key={f.id}
+   907→   907→                className="absolute pointer-events-none z-30"
+   908→   908→                style={{ left: `${((f.c + 0.5) * 100) / level.cols}%`, top: `${((f.r + 0.5) * 100) / level.rows}%`, width: 0, height: 0 }}
+   909→   909→              >
+   910→   910→                <span className="anim-rise absolute font-display font-black text-lg text-[#ffe9a8] drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)] whitespace-nowrap -translate-x-1/2">
+   911→   911→                  {f.text}
+   912→   912→                </span>
+   913→   913→              </div>
+   914→   914→            ))}
+   915→   915→
+   916→   916→            {/* combo banner */}
+   917→   917→            {combo && (
+   918→   918→              <div key={combo.id} className="absolute inset-0 z-40 flex items-center justify-center pointer-events-none">
+   919→   919→                <span className="anim-combo combo-banner font-display italic font-black text-3xl px-6 py-1.5 rounded-full">
+   920→   920→                  {combo.text ?? `Combo ×${combo.n}!`}
+   921→   921→                </span>
+   922→   922→              </div>
+   923→   923→            )}
+   924→   924→
+   925→   925→            {/* objective complete flash */}
+   926→   926→            {goalFlash && (
+   927→   927→              <div key={goalFlash.id} className="absolute inset-0 z-40 flex items-center justify-center pointer-events-none">
+   928→   928→                <img src={A('banner-objective')} alt="Objective complete!" draggable={false} className="anim-combo w-48 drop-shadow-2xl" />
+   929→   929→              </div>
+   930→   930→            )}
+   931→   931→
+   932→   932→            {/* toast */}
+   933→   933→            {toast && (
+   934→   934→              <div className="absolute inset-x-0 bottom-3 z-40 flex justify-center pointer-events-none">
+   935→   935→                <span className="hud-pill rounded-full px-4 py-1.5 text-xs font-bold anim-fade-in">{toast}</span>
+   936→   936→              </div>
+   937→   937→            )}
+   938→   938→          </div>
+   939→   939→        </div>
+   940→   940→      </main>
+   941→   941→
+   942→   942→      {/* boosters */}
+   943→   943→      <footer className="relative z-20 px-4 pb-2 pt-0.5 flex items-center justify-between gap-3">
+   944→   944→        <BoosterButton
+   945→   945→          kind="lens"
+   946→   946→          count={inventory.lens}
+   947→   947→          armed={armedBooster === 'lens'}
+   948→   948→          disabled={busy || status !== 'playing'}
+   949→   949→          onClick={() => armBooster('lens')}
+   950→   950→        />
+   951→   951→        <div className="flex-1 min-w-0" aria-hidden />
+   952→   952→        <BoosterButton
+   953→   953→          kind="null"
+   954→   954→          count={inventory.null}
+   955→   955→          armed={armedBooster === 'null'}
+   956→   956→          disabled={busy || status !== 'playing'}
+   957→   957→          onClick={() => armBooster('null')}
+   958→   958→        />
+   959→   959→      </footer>
+   960→   960→
+   961→   961→      {/* modals */}
+   962→   962→      {paused && status === 'playing' && (
+   963→   963→        <PauseModal
+   964→   964→          level={level}
+   965→   965→          isDaily={isDaily}
+   966→   966→          onResume={() => {
+   967→   967→            pausedRef.current = false
+   968→   968→            setPaused(false)
+   969→   969→            resetHintTimer()
+   970→   970→          }}
+   971→   971→          onRestart={() => {
+   972→   972→            pausedRef.current = false
+   973→   973→            setPaused(false)
+   974→   974→            resetLevel()
+   975→   975→          }}
+   976→   976→          onOptions={() => onOpenInstruments()}
+   977→   977→          onQuit={() => {
+   978→   978→            pausedRef.current = false
+   979→   979→            setPaused(false)
+   980→   980→            onExit()
+   981→   981→          }}
+   982→   982→        />
+   983→   983→      )}
+   984→   984→      {result && status === 'won' && (
+   985→   985→        <FolioSealedModal
+   986→   986→          level={level}
+   987→   987→          result={result}
+   988→   988→          rewards={rewards}
+   989→   989→          isDaily={isDaily}
+   990→   990→          hasNext={isDaily || hasNextStage}
+   991→   991→          onNext={() => (isDaily ? onExit() : onPlayLevel(level.id + 1))}
+   992→   992→          onReplay={resetLevel}
+   993→   993→          onExit={onExit}
+   994→   994→        />
+   995→   995→      )}
+   996→   996→      {result && status === 'lost' && (
+   997→   997→        <FolioLostModal level={level} isDaily={isDaily} score={result.score} onReplay={resetLevel} onExit={onExit} />
+   998→   998→      )}
+   999→   999→    </div>
+  1000→  1000→  )
+  1001→  1001→}
+  1002→  1002→
+  1003→  1003→/* ---------------- booster button ---------------- */
+  1004→  1004→
+  1005→  1005→function BoosterButton({
+  1006→  1006→  kind,
+  1007→  1007→  count,
+  1008→  1008→  armed,
+  1009→  1009→  disabled,
+  1010→  1010→  onClick,
+  1011→  1011→}: {
+  1012→  1012→  kind: BoosterKind
+  1013→  1013→  count: number
+  1014→  1014→  armed: boolean
+  1015→  1015→  disabled?: boolean
+  1016→  1016→  onClick: () => void
+  1017→  1017→}) {
+  1018→  1018→  const label = kind === 'lens' ? 'Lens' : 'Null'
+  1019→  1019→  return (
+  1020→  1020→    <button
+  1021→  1021→      type="button"
+  1022→  1022→      aria-label={`${label} booster — ${count} remaining${kind === 'lens' ? '. Instantly weaves one thread without spending a move.' : '. Unweaves any single charm without spending a move.'}`}
+  1023→  1023→      disabled={disabled || count <= 0}
+  1024→  1024→      onClick={onClick}
+  1025→  1025→      className={cn('booster-btn w-[54px] h-[54px] shrink-0', armed && 'booster-armed')}
+  1026→  1026→    >
+  1027→  1027→      {kind === 'lens' ? (
+  1028→  1028→        <svg viewBox="0 0 24 24" className="w-6 h-6" fill="none" stroke="#5d3a1a" strokeWidth="2.4" strokeLinecap="round" aria-hidden>
+  1029→  1029→          <circle cx="10.5" cy="10.5" r="6.2" />
+  1030→  1030→          <path d="m15.3 15.3 5 5" />
+  1031→  1031→        </svg>
+  1032→  1032→      ) : (
+  1033→  1033→        <svg viewBox="0 0 24 24" className="w-6 h-6" fill="none" stroke="#5d3a1a" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+  1034→  1034→          <path d="M14.5 4.5 19 9l-2.5 2.5L12 7l2.5-2.5ZM12 7 5 14v5h5l7-7" />
+  1035→  1035→          <path d="m13 12 5-5" />
+  1036→  1036→        </svg>
+  1037→  1037→      )}
+  1038→  1038→      <span className="text-[8px] font-display font-extrabold uppercase tracking-widest text-[#5d3a1a] leading-none">
+  1039→  1039→        {label}
+  1040→  1040→      </span>
+  1041→  1041→      <span className="booster-count" aria-hidden>
+  1042→  1042→        {count}
+  1043→  1043→      </span>
+  1044→  1044→    </button>
+  1045→  1045→  )
+  1046→  1046→}
+  1047→  1047→
+  1048→  1048→/* ---------------- tile (memoized — re-renders only when its tile/position/flags change) ---------------- */
+  1049→  1049→
+  1050→  1050→const TileView = React.memo(function TileView({
+  1051→  1051→  tile,
+  1052→  1052→  r,
+  1053→  1053→  c,
+  1054→  1054→  rows,
+  1055→  1055→  cols,
+  1056→  1056→  selected,
+  1057→  1057→  hinted,
+  1058→  1058→}: {
+  1059→  1059→  tile: Tile
+  1060→  1060→  r: number
+  1061→  1061→  c: number
+  1062→  1062→  rows: number
+  1063→  1063→  cols: number
+  1064→  1064→  selected: boolean
+  1065→  1065→  hinted: boolean
+  1066→  1066→}) {
+  1067→  1067→  const spawned = !!tile.spawned
+  1068→  1068→  const specialClass =
+  1069→  1069→    tile.special === 'lineH' || tile.special === 'lineV'
+  1070→  1070→      ? 'special-lineH'
+  1071→  1071→      : tile.special === 'bomb'
+  1072→  1072→        ? 'special-bomb'
+  1073→  1073→        : ''
+  1074→  1074→  return (
+  1075→  1075→    <div
+  1076→  1076→      className={cn('absolute left-0 top-0 tile-anim-fall', tile.clearing && 'tile-clearing')}
+  1077→  1077→      style={{
+  1078→  1078→        width: `${100 / cols}%`,
+  1079→  1079→        height: `${100 / rows}%`,
+  1080→  1080→        transform: `translate(${c * 100}%, ${(spawned ? r - rows : r) * 100}%)`,
+  1081→  1081→        transition: spawned
+  1082→  1082→          ? `transform 430ms cubic-bezier(0.3, 0.85, 0.35, 1.12) ${c * 24}ms`
+  1083→  1083→          : 'transform 240ms cubic-bezier(0.3, 0.8, 0.35, 1.05)',
+  1084→  1084→        zIndex: selected ? 20 : 10,
+  1085→  1085→      }}
+  1086→  1086→    >
+  1087→  1087→      <div
+  1088→  1088→        className={cn(
+  1089→  1089→          'absolute inset-[7%] flex items-center justify-center',
+  1090→  1090→          selected && 'anim-tile-select z-20',
+  1091→  1091→          hinted && !selected && 'anim-wiggle',
+  1092→  1092→          specialClass,
+  1093→  1093→        )}
+  1094→  1094→        style={{ borderRadius: '26%' }}
+  1095→  1095→      >
+  1096→  1096→        <img
+  1097→  1097→          src={tile.special === 'prism' ? A('fx-rainbow') : TILE_IMG[tile.type]}
+  1098→  1098→          alt=""
+  1099→  1099→          draggable={false}
+  1100→  1100→          className={cn(
+  1101→  1101→            'tile-img w-full h-full object-contain drop-shadow-[0_3px_3px_rgba(0,0,0,0.4)] pointer-events-none',
+  1102→  1102→            tile.special === 'prism' && 'anim-prism scale-110',
+  1103→  1103→          )}
+  1104→  1104→        />
+  1105→  1105→        {tile.special === 'lineH' && (
+  1106→  1106→          <img src={A('icon-bolt')} alt="" draggable={false} className="absolute w-[46%] h-[46%] object-contain -rotate-90 drop-shadow" />
+  1107→  1107→        )}
+  1108→  1108→        {tile.special === 'lineV' && (
+  1109→  1109→          <img src={A('icon-bolt')} alt="" draggable={false} className="absolute w-[46%] h-[46%] object-contain drop-shadow" />
+  1110→  1110→        )}
+  1111→  1111→        {tile.special === 'bomb' && (
+  1112→  1112→          <span className="absolute inset-[18%] rounded-full bg-[radial-gradient(circle,rgba(255,150,80,0.55),transparent_70%)] animate-pulse" />
+  1113→  1113→        )}
+  1114→  1114→      </div>
+  1115→  1115→    </div>
+  1116→  1116→  )
+  1117→  1117→})
+  1118→  1118→
