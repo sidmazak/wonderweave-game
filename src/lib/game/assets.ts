@@ -10,6 +10,7 @@ export const TILE_IMG: Record<TileType, string> = {
   flower: A('tile-flower'),
   mushroom: A('tile-mushroom'),
   gem: A('tile-gem'),
+  orb: A('tile-orb'),
 }
 
 export const SPECIAL_BADGE: Partial<Record<Special, string>> = {
@@ -22,4 +23,10 @@ export const SPECIAL_LABEL: Record<Exclude<Special, 'none'>, string> = {
   lineV: 'Column Weaver',
   bomb: 'Charm Burst',
   prism: 'Rainbow Prism',
+}
+
+/** Booster button art (lucide fallbacks are used in components). */
+export const BOOSTER_IMG = {
+  lens: A('deco-lamp'),
+  null: A('icon-close'),
 }

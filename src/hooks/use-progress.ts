@@ -1,6 +1,10 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import type { BoosterInventory, BoosterKind, DailyRewards, DailyState } from '@/lib/game/types'
+import { dateKey, dailyRewardFor, yesterdayKey } from '@/lib/game/daily'
+import { discover } from '@/lib/game/codex'
+import { TOTAL_LEVELS } from '@/lib/game/levels'
 
 export interface LevelRecord {
   stars: number
@@ -12,6 +16,11 @@ export type ProgressMap = Record<number, LevelRecord>
 const LS_PLAYER_ID = 'ww-player-id'
 const LS_PLAYER_NAME = 'ww-player-name'
 const LS_PROGRESS = 'ww-progress'
+const LS_LUMENS = 'ww-lumens'
+const LS_INVENTORY = 'ww-inventory'
+const LS_DAILY = 'ww-daily'
+
+const DEFAULT_INVENTORY: BoosterInventory = { lens: 3, null: 3 }
 
 function randomName(): string {
   const a = ['Fern', 'Moss', 'Bramble', 'Wren', 'Clover', 'Dew', 'Sage', 'Petal', 'Thistle', 'Rowan']
@@ -34,19 +43,43 @@ function ensurePlayer(): { id: string; name: string } {
   return { id, name }
 }
 
-function loadLocalProgress(): ProgressMap {
-  if (typeof window === 'undefined') return {}
+function loadJSON<T>(key: string, fallback: T): T {
+  if (typeof window === 'undefined') return fallback
   try {
-    return JSON.parse(localStorage.getItem(LS_PROGRESS) ?? '{}') as ProgressMap
+    const raw = localStorage.getItem(key)
+    return raw ? (JSON.parse(raw) as T) : fallback
   } catch {
-    return {}
+    return fallback
+  }
+}
+
+function saveJSON(key: string, value: unknown): void {
+  if (typeof window === 'undefined') return
+  try {
+    localStorage.setItem(key, JSON.stringify(value))
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Lumens earned for finishing a campaign stage. */
+export function levelRewards(stars: number, score: number): { lumens: number; lens: number; null: number } {
+  return {
+    lumens: 20 + stars * 15 + Math.floor(score / 400),
+    lens: 1,
+    null: stars >= 2 ? 1 : 0,
   }
 }
 
 export function useProgress() {
   const [player, setPlayer] = useState<{ id: string; name: string }>({ id: '', name: '' })
   const [progress, setProgress] = useState<ProgressMap>({})
-  const [serverSynced, setServerSynced] = useState(false)
+  const [lumens, setLumens] = useState(0)
+  const lumensRef = useRef(0)
+  const [inventory, setInventory] = useState<BoosterInventory>(DEFAULT_INVENTORY)
+  const inventoryRef = useRef<BoosterInventory>(DEFAULT_INVENTORY)
+  const [daily, setDaily] = useState<DailyState>({ last: null, streak: 0 })
+  const dailyRef = useRef<DailyState>({ last: null, streak: 0 })
   const nameRef = useRef('')
 
   useEffect(() => {
@@ -54,12 +87,20 @@ export function useProgress() {
     const init = async () => {
       const p = ensurePlayer()
       nameRef.current = p.name
-      const local = loadLocalProgress()
-      // yield a microtask so we never setState synchronously inside the effect
+      const local = loadJSON<ProgressMap>(LS_PROGRESS, {})
       await Promise.resolve()
       if (cancelled) return
       setPlayer(p)
       setProgress(local)
+      const lumensLoaded = loadJSON<number>(LS_LUMENS, 40)
+      lumensRef.current = lumensLoaded
+      setLumens(lumensLoaded)
+      const invLoaded: BoosterInventory = { ...DEFAULT_INVENTORY, ...loadJSON<BoosterInventory>(LS_INVENTORY, DEFAULT_INVENTORY) }
+      inventoryRef.current = invLoaded
+      setInventory(invLoaded)
+      const dailyLoaded = loadJSON<DailyState>(LS_DAILY, { last: null, streak: 0 })
+      dailyRef.current = dailyLoaded
+      setDaily(dailyLoaded)
 
       // sync with server in background (best-effort)
       try {
@@ -80,11 +121,10 @@ export function useProgress() {
                 bestScore: Math.max(cur?.bestScore ?? 0, row.bestScore),
               }
             }
-            localStorage.setItem(LS_PROGRESS, JSON.stringify(merged))
+            saveJSON(LS_PROGRESS, merged)
             return merged
           })
         }
-        if (!cancelled) setServerSynced(true)
       } catch {
         /* offline: local progress remains authoritative */
       }
@@ -106,11 +146,11 @@ export function useProgress() {
             bestScore: Math.max(cur?.bestScore ?? 0, score),
           },
         }
-        if (typeof window !== 'undefined') localStorage.setItem(LS_PROGRESS, JSON.stringify(next))
+        saveJSON(LS_PROGRESS, next)
         return next
       })
-      // fire-and-forget server save
-      if (player.id) {
+      // fire-and-forget server save (campaign stages only)
+      if (player.id && levelId > 0) {
         void fetch('/api/progress', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -120,6 +160,69 @@ export function useProgress() {
     },
     [player.id],
   )
+
+  const addLumens = useCallback((n: number) => {
+    const next = Math.max(0, lumensRef.current + n)
+    lumensRef.current = next
+    saveJSON(LS_LUMENS, next)
+    setLumens(next)
+  }, [])
+
+  /** Synchronous spend; returns false when the balance is too low. */
+  const spendLumens = useCallback((n: number): boolean => {
+    if (lumensRef.current < n) return false
+    const next = lumensRef.current - n
+    lumensRef.current = next
+    saveJSON(LS_LUMENS, next)
+    setLumens(next)
+    return true
+  }, [])
+
+  const addBoosters = useCallback((patch: Partial<BoosterInventory>) => {
+    const inv = inventoryRef.current
+    const next: BoosterInventory = {
+      lens: Math.min(99, inv.lens + (patch.lens ?? 0)),
+      null: Math.min(99, inv.null + (patch.null ?? 0)),
+    }
+    inventoryRef.current = next
+    saveJSON(LS_INVENTORY, next)
+    setInventory(next)
+  }, [])
+
+  /** Synchronous spend of a booster; returns false when out of stock. */
+  const useBooster = useCallback((kind: BoosterKind): boolean => {
+    const inv = inventoryRef.current
+    if (inv[kind] <= 0) return false
+    const next: BoosterInventory = { ...inv, [kind]: inv[kind] - 1 }
+    inventoryRef.current = next
+    saveJSON(LS_INVENTORY, next)
+    setInventory(next)
+    return true
+  }, [])
+
+  /** Mark today's daily as complete; grants streak-scaled rewards once per day. */
+  const completeDaily = useCallback((): DailyRewards | null => {
+    const today = dateKey()
+    const prev = dailyRef.current
+    if (prev.last === today) return null
+    const streak = prev.last === yesterdayKey() ? prev.streak + 1 : 1
+    const r = dailyRewardFor(streak)
+    const rewards: DailyRewards = { ...r, streak }
+    const next: DailyState = { last: today, streak }
+    dailyRef.current = next
+    saveJSON(LS_DAILY, next)
+    setDaily(next)
+    const l = lumensRef.current + r.lumens
+    lumensRef.current = l
+    saveJSON(LS_LUMENS, l)
+    setLumens(l)
+    const inv = inventoryRef.current
+    const n: BoosterInventory = { lens: Math.min(99, inv.lens + r.lens), null: Math.min(99, inv.null + r.null) }
+    inventoryRef.current = n
+    saveJSON(LS_INVENTORY, n)
+    setInventory(n)
+    return rewards
+  }, [])
 
   const setName = useCallback(
     (name: string) => {
@@ -143,14 +246,54 @@ export function useProgress() {
     { stars: 0, score: 0, levels: 0 },
   )
 
+  /** First level id without a star (sequential unlock across all 144 stages). */
   const highestUnlocked = (() => {
     let n = 1
-    for (let i = 1; i <= 12; i++) {
-      if (progress[i]?.stars) n = Math.min(12, i + 1)
+    for (let i = 1; i <= TOTAL_LEVELS; i++) {
+      if (progress[i]?.stars >= 1) n = Math.min(TOTAL_LEVELS, i + 1)
       else break
     }
     return n
   })()
 
-  return { player, progress, saveResult, setName, totals, highestUnlocked, serverSynced }
+  /** Highest chapter whose first stage is unlocked. */
+  const highestChapter = Math.min(12, Math.ceil(highestUnlocked / 12))
+
+  const isLevelUnlocked = useCallback((levelId: number) => levelId <= highestUnlocked, [highestUnlocked])
+
+  const onLevelWin = useCallback(
+    (levelId: number, stars: number, score: number) => {
+      saveResult(levelId, score, stars)
+      const r = levelRewards(stars, score)
+      addLumens(r.lumens)
+      addBoosters({ lens: r.lens, null: r.null })
+      // codex milestones
+      const ids: string[] = ['entity:wizard']
+      if (stars >= 3) ids.push('entity:cheer')
+      if (levelId >= 12) ids.push('entity:walk')
+      discover(...ids)
+      return r
+    },
+    [addBoosters, addLumens, saveResult],
+  )
+
+  return {
+    player,
+    progress,
+    saveResult,
+    onLevelWin,
+    setName,
+    totals,
+    highestUnlocked,
+    highestChapter,
+    isLevelUnlocked,
+    lumens,
+    addLumens,
+    spendLumens,
+    inventory,
+    addBoosters,
+    useBooster,
+    daily,
+    completeDaily,
+  }
 }

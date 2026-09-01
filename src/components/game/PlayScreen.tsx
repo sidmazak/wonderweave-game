@@ -3,7 +3,7 @@
 import * as React from 'react'
 import { cn } from '@/lib/utils'
 import { A, TILE_IMG } from '@/lib/game/assets'
-import { LEVELS, getLevel } from '@/lib/game/levels'
+import { CHAPTERS, TILE_META, stageTitle } from '@/lib/game/levels'
 import {
   applyClear,
   applyGravity,
@@ -18,21 +18,33 @@ import {
   planClear,
   shuffleGrid,
 } from '@/lib/game/engine'
-import type { Cell, ClearPlan, Grid, LevelResult, Special, Tile } from '@/lib/game/types'
-import { initAudio, sfx, setMuted } from '@/lib/game/sound'
-import { IconButton, ProgressBar, WoodButton } from './ui'
-import {
-  GoalChip,
-  LevelCompleteModal,
-  LevelFailedModal,
-  OptionsModal,
-  PauseModal,
-} from './modals'
+import type { ClearPlan } from '@/lib/game/engine'
+import type {
+  BoosterKind,
+  BoosterInventory,
+  Cell,
+  Grid,
+  LevelDef,
+  LevelResult,
+  Tile,
+} from '@/lib/game/types'
+import { initAudio, sfx } from '@/lib/game/sound'
+import { discover, LUMEN_ID_BY_TYPE } from '@/lib/game/codex'
+import { useVibrate } from './settings'
+import { CountUp, IconButton, ProgressBar, RibbonBanner } from './ui'
+import { FolioSealedModal, FolioLostModal, PauseModal } from './modals'
 
 const sleep = (ms: number) => new Promise<void>((res) => setTimeout(res, ms))
 
 function adjacent(a: Cell, b: Cell): boolean {
   return Math.abs(a.r - b.r) + Math.abs(a.c - b.c) === 1
+}
+
+export interface RewardSummary {
+  lumens: number
+  lens: number
+  null: number
+  streak?: number
 }
 
 interface Floater {
@@ -50,27 +62,27 @@ let floaterSeq = 1
 let comboSeq = 1
 
 export function PlayScreen({
-  levelId,
-  playerName,
-  sound,
-  vibration,
-  onSound,
-  onVibration,
-  onExitToAtlas,
+  level,
+  isDaily,
+  inventory,
+  spendBooster,
+  onExit,
   onPlayLevel,
-  onSaveResult,
+  onWin,
+  onOpenInstruments,
+  hasNextStage,
 }: {
-  levelId: number
-  playerName: string
-  sound: boolean
-  vibration: boolean
-  onSound: (v: boolean) => void
-  onVibration: (v: boolean) => void
-  onExitToAtlas: () => void
+  level: LevelDef
+  isDaily: boolean
+  inventory: BoosterInventory
+  spendBooster: (kind: BoosterKind) => boolean
+  onExit: () => void
   onPlayLevel: (id: number) => void
-  onSaveResult: (result: LevelResult) => void
+  onWin: (result: LevelResult) => RewardSummary
+  onOpenInstruments: () => void
+  hasNextStage: boolean
 }) {
-  const level = React.useMemo(() => getLevel(levelId), [levelId])
+  const vibrate = useVibrate()
 
   const [grid, setGrid] = React.useState<Grid>(() => {
     const g = createGrid(level.rows, level.cols, level.types)
@@ -116,27 +128,19 @@ export function PlayScreen({
   const [status, setStatus] = React.useState<'playing' | 'won' | 'lost'>('playing')
   const statusRef = React.useRef<'playing' | 'won' | 'lost'>('playing')
   const [result, setResult] = React.useState<LevelResult | null>(null)
+  const [rewards, setRewards] = React.useState<RewardSummary | null>(null)
   const [paused, setPaused] = React.useState(false)
   const pausedRef = React.useRef(false)
-  const [showOptions, setShowOptions] = React.useState(false)
-  const runIdRef = React.useRef(0)
+  const [armedBooster, setArmedBooster] = React.useState<BoosterKind | null>(null)
+  const armedRef = React.useRef<BoosterKind | null>(null)
+  const setArmed = React.useCallback((k: BoosterKind | null) => {
+    armedRef.current = k
+    setArmedBooster(k)
+  }, [])
 
   const wrapRef = React.useRef<HTMLDivElement>(null)
   const boardRef = React.useRef<HTMLDivElement>(null)
   const [size, setSize] = React.useState({ w: 0, h: 0 })
-
-  React.useEffect(() => {
-    setMuted(!sound)
-  }, [sound])
-
-  const vibrate = React.useCallback(
-    (ms: number) => {
-      if (vibration && typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
-        navigator.vibrate(ms)
-      }
-    },
-    [vibration],
-  )
 
   /* ------- board sizing ------- */
   React.useEffect(() => {
@@ -177,13 +181,14 @@ export function PlayScreen({
 
   React.useEffect(() => {
     initAudio()
+    discover('entity:lantern')
+    if (level.chapter > 0) discover(`lore:${level.chapter}`)
     clearSpawnedNextFrame()
     const t = setTimeout(() => lock(false), 480 + level.cols * 26)
     return () => clearTimeout(t)
   }, [clearSpawnedNextFrame, lock, level.cols])
 
   const resetLevel = React.useCallback(() => {
-    runIdRef.current++
     const g = createGrid(level.rows, level.cols, level.types)
     for (const row of g) for (const t of row) if (t) t.spawned = true
     setGridBoth(g)
@@ -196,17 +201,19 @@ export function PlayScreen({
     setCollected({})
     doneGoalsRef.current = new Set()
     setSelectedBoth(null)
+    setArmed(null)
     setHint(null)
     setCombo(null)
     setFloaters([])
     setResult(null)
+    setRewards(null)
     setStatus('playing')
     statusRef.current = 'playing'
     setPaused(false)
     pausedRef.current = false
     lock(true)
     setTimeout(() => lock(false), 480 + level.cols * 26)
-  }, [clearSpawnedNextFrame, level, lock, setGridBoth, setSelectedBoth])
+  }, [clearSpawnedNextFrame, level, lock, setArmed, setGridBoth, setSelectedBoth])
 
   /* ------- helpers ------- */
   const showToast = React.useCallback((msg: string) => {
@@ -238,12 +245,12 @@ export function PlayScreen({
       if (won) {
         sfx.win()
         for (let i = 0; i < stars; i++) setTimeout(() => sfx.star(i), 500 + i * 380)
-        onSaveResult(res)
+        setRewards(onWin(res))
       } else {
         sfx.lose()
       }
     },
-    [level, onSaveResult],
+    [level, onWin],
   )
 
   const checkObjective = React.useCallback((): boolean => {
@@ -267,19 +274,28 @@ export function PlayScreen({
       scoreRef.current += gained
       setScore(scoreRef.current)
 
-      // collection + special sfx
+      // collection + codex discovery
       const col = { ...collectedRef.current }
       let lineHit = false
       let bombHit = false
+      const seenTypes = new Set<string>()
       for (const { r, c } of cellsArr) {
         const t = g[r]?.[c]
         if (!t) continue
         col[t.type] = (col[t.type] ?? 0) + 1
+        seenTypes.add(t.type)
         if (t.special === 'lineH' || t.special === 'lineV') lineHit = true
         if (t.special === 'bomb') bombHit = true
       }
       collectedRef.current = col
       setCollected(col)
+      if (seenTypes.size > 0) {
+        const lumenIds = [...seenTypes].map((t) => LUMEN_ID_BY_TYPE[t]).filter(Boolean)
+        if (lumenIds.length > 0) discover(...lumenIds)
+      }
+      for (const promo of plan.promotions.values()) {
+        if (promo.special === 'prism') discover('lumen:vitriol')
+      }
       if (lineHit) sfx.line()
       if (bombHit) sfx.bomb()
 
@@ -359,15 +375,15 @@ export function PlayScreen({
   const activatePrism = React.useCallback(
     async (a: Cell, b: Cell): Promise<void> => {
       const g = gridRef.current
-      const ta = g[a.r][a.c]
-      const tb = g[b.r][b.c]
+      const ta = g[a.r]?.[a.c]
+      const tb = g[b.r]?.[b.c]
       if (!ta || !tb) return
       const aIsPrism = ta.special === 'prism'
       const other = aIsPrism ? tb : ta
       sfx.prism()
+      discover('lumen:vitriol')
       const seed = new Set<string>()
       if (other.special === 'prism') {
-        // prism + prism: weave the whole loom
         for (let r = 0; r < level.rows; r++) for (let c = 0; c < level.cols; c++) seed.add(key(r, c))
       } else {
         for (let r = 0; r < level.rows; r++) {
@@ -398,14 +414,13 @@ export function PlayScreen({
       const ng = shuffleGrid(cloneGrid(gridRef.current), level.types)
       setGridBoth(ng)
       await sleep(450)
-      // a shuffle may create matches — resolve them freely
       await cascadeLoop()
     }
   }, [cascadeLoop, checkObjective, finishLevel, level.types, setGridBoth, showToast])
 
   /* ------- swap flow ------- */
   const attemptSwap = React.useCallback(
-    async (a: Cell, b: Cell): Promise<void> => {
+    async (a: Cell, b: Cell, opts?: { free?: boolean }): Promise<void> => {
       if (busyRef.current || pausedRef.current || statusRef.current !== 'playing') return
       if (!a || !b || typeof a.r !== 'number' || typeof b.r !== 'number') return
       if (!adjacent(a, b)) return
@@ -442,8 +457,10 @@ export function PlayScreen({
         return
       }
 
-      movesRef.current -= 1
-      setMovesLeft(movesRef.current)
+      if (!opts?.free) {
+        movesRef.current -= 1
+        setMovesLeft(movesRef.current)
+      }
       vibrate(10)
 
       if (prismInvolved) {
@@ -460,6 +477,83 @@ export function PlayScreen({
       lock(false)
     },
     [activatePrism, afterMove, blast, cascadeLoop, lock, setGridBoth, setSelectedBoth, vibrate],
+  )
+
+  /* ------- boosters ------- */
+  const armBooster = React.useCallback(
+    (kind: BoosterKind) => {
+      if (busyRef.current || pausedRef.current || statusRef.current !== 'playing') return
+      if (inventory[kind] <= 0) return
+      initAudio()
+      if (kind === 'lens') {
+        // LENS executes the weave instantly (no move spent)
+        if (!spendBooster('lens')) return
+        setArmed(null)
+        setSelectedBoth(null)
+        sfx.lens()
+        const moves = findAllMoves(cloneGrid(gridRef.current))
+        if (moves.length === 0) {
+          showToast('No threads available — the loom reshuffles…')
+          const ng = shuffleGrid(cloneGrid(gridRef.current), level.types)
+          setGridBoth(ng)
+          return
+        }
+        void attemptSwap(moves[0][0], moves[0][1], { free: true })
+        return
+      }
+      sfx.booster()
+      setArmed(armedRef.current === 'null' ? null : 'null')
+      setSelectedBoth(null)
+    },
+    [attemptSwap, inventory, level.types, setArmed, setGridBoth, setSelectedBoth, showToast, spendBooster],
+  )
+
+  const nullifyCell = React.useCallback(
+    async (cell: Cell): Promise<void> => {
+      if (busyRef.current || statusRef.current !== 'playing') return
+      if (!spendBooster('null')) {
+        setArmed(null)
+        return
+      }
+      lock(true)
+      setArmed(null)
+      setSelectedBoth(null)
+      setHint(null)
+      sfx.nullify()
+      vibrate(16)
+
+      const g = cloneGrid(gridRef.current)
+      const t = g[cell.r]?.[cell.c]
+      if (!t) {
+        lock(false)
+        return
+      }
+      t.clearing = true
+      setGridBoth(g)
+      await sleep(230)
+
+      applyClear(g, { cells: new Set([key(cell.r, cell.c)]), promotions: new Map() })
+      const grav = applyGravity(g, level.types)
+      setGridBoth(g)
+      if (grav.spawnedIds.length > 0) await sleep(430 + level.cols * 26 + 60)
+      else await sleep(280)
+      const g2 = cloneGrid(gridRef.current)
+      let dirty = false
+      for (const row of g2) {
+        for (const tl of row) {
+          if (tl && tl.spawned) {
+            delete tl.spawned
+            dirty = true
+          }
+        }
+      }
+      if (dirty) setGridBoth(g2)
+
+      await cascadeLoop()
+      await afterMove()
+      lock(false)
+    },
+    [afterMove, cascadeLoop, level.cols, level.types, lock, setArmed, setGridBoth, setSelectedBoth, spendBooster, vibrate],
   )
 
   /* ------- pointer input ------- */
@@ -503,6 +597,10 @@ export function PlayScreen({
     const cell = cellFromPoint(e.clientX, e.clientY)
     if (!cell) return
     resetHintTimer()
+    if (armedRef.current === 'null') {
+      void nullifyCell(cell)
+      return
+    }
     dragRef.current = { startCell: cell, x: e.clientX, y: e.clientY, done: false }
   }
   const onPointerMove = (e: React.PointerEvent) => {
@@ -537,6 +635,10 @@ export function PlayScreen({
       setSelectedBoth(null)
       return
     }
+    if (armedRef.current === 'null') {
+      void nullifyCell(cell)
+      return
+    }
     // pure tap/select logic — side effects happen outside any state updater
     const sel = selectedRef.current
     if (!sel) {
@@ -560,66 +662,111 @@ export function PlayScreen({
 
   /* ------- render ------- */
   const obj = level.objective
-  const star3 = level.star3
-  const fill = Math.min(1, score / star3)
-  const won = status === 'won'
+  const bgKey = level.chapter > 0 ? CHAPTERS[level.chapter - 1].bg : 'bg-altar'
+  const stageLabel = isDaily ? 'DAILY PAGE' : `STAGE ${stageTitle(level)}`
 
   return (
-    <div className="relative flex-1 flex flex-col overflow-hidden">
+    <div className="relative flex-1 flex flex-col overflow-hidden ww-tap-none">
       {/* backdrop */}
       <div aria-hidden className="absolute inset-0">
-        <img src={A('bg-forest')} alt="" className="w-full h-full object-cover" draggable={false} />
-        <div className="absolute inset-0 bg-gradient-to-b from-[#0e1c14]/35 via-[#0e1c14]/15 to-[#0e1c14]/50" />
+        <img src={A(bgKey)} alt="" className="w-full h-full object-cover" draggable={false} />
+        <div className="absolute inset-0 bg-gradient-to-b from-[#0e1c14]/45 via-[#0e1c14]/20 to-[#0e1c14]/55" />
       </div>
 
-      {/* HUD */}
-      <header className="relative z-10 flex items-center gap-2 px-3 pt-3">
-        <IconButton img={A('icon-pause')} label="Pause" onClick={() => { pausedRef.current = true; setPaused(true) }} />
-        <div className="flex-1 min-w-0 text-center">
-          <p className="font-display font-extrabold text-[#fff4d4] ww-text-outline leading-tight truncate">{level.name}</p>
-          <p className="text-[10px] font-semibold tracking-[0.2em] uppercase text-[#f4e9c8]/75">Chapter {level.id}</p>
+      {/* HUD — ribbon row */}
+      <header className="relative z-20 flex items-start gap-2 px-3 pt-3">
+        <IconButton
+          img={A('icon-pause')}
+          label="Pause"
+          className="mt-1.5"
+          onClick={() => {
+            discover('entity:rest')
+            pausedRef.current = true
+            setPaused(true)
+          }}
+        />
+        <div className="flex-1 min-w-0 flex justify-center">
+          <RibbonBanner title={stageLabel} subtitle={level.name} size="sm" className="w-full max-w-[300px]" />
         </div>
-        <div className="hud-pill rounded-2xl px-3 py-1 flex flex-col items-center leading-none" aria-label={`${movesLeft} moves left`}>
+        <div
+          className="hud-pill rounded-2xl px-3 py-1 flex flex-col items-center leading-none mt-0.5 min-w-[64px]"
+          aria-label={`${movesLeft} moves left`}
+        >
           <span className="text-[9px] uppercase tracking-widest text-[#d9c79a] font-bold">Moves</span>
-          <span className={cn('font-display text-xl font-extrabold tabular-nums', movesLeft <= 3 && 'text-[#ff9d7a] animate-pulse')}>{movesLeft}</span>
+          <span
+            className={cn(
+              'font-display text-xl font-extrabold tabular-nums',
+              movesLeft <= 3 && 'text-[#ff9d7a] animate-pulse',
+            )}
+          >
+            {movesLeft}
+          </span>
         </div>
       </header>
 
-      {/* score + objectives */}
-      <section className="relative z-10 px-3 mt-2" aria-label="Score and objectives">
-        <div className="flex items-center gap-2">
-          <span className="hud-pill rounded-full px-2.5 py-1 text-sm font-extrabold tabular-nums" aria-live="polite">
-            {score.toLocaleString()}
-          </span>
-          <div className="relative flex-1 h-4 rounded-full bg-[#241a0e]/85 border border-[#a97b42]/70">
-            <div
-              className="absolute inset-y-0 left-0 rounded-full bg-gradient-to-b from-[#ffe28a] via-[#ffc94d] to-[#e8963c] transition-[width] duration-500"
-              style={{ width: `${fill * 100}%` }}
-            />
-            {[2, 3].map((sn) => {
-              const threshold = sn === 2 ? level.star2 : level.star3
-              const lit = score >= threshold
-              return (
-                <img
-                  key={sn}
-                  src={A('star-sparkle')}
-                  alt=""
-                  draggable={false}
-                  className={cn('absolute w-6 h-6 -top-1 object-contain transition', lit ? '' : 'grayscale opacity-45')}
-                  style={{ left: `calc(${(threshold / star3) * 100}% - 12px)` }}
-                />
-              )
-            })}
-          </div>
-        </div>
-        <div className="flex flex-wrap items-center justify-center gap-2 mt-2">
+      {/* goals + score */}
+      <section className="relative z-20 px-3 mt-2 flex items-stretch gap-2" aria-label="Score and objectives">
+        <div className="goal-card flex-1 min-w-0 px-2.5 py-1.5 flex flex-wrap items-center gap-x-3 gap-y-1">
           {obj.kind === 'collect'
-            ? (obj.collect ?? []).map((goal) => (
-                <GoalChip key={goal.type} type={goal.type} have={collected[goal.type] ?? 0} need={goal.count} />
-              ))
-            : (
-              <GoalChip type="star" have={Math.min(score, star3)} need={star3} />
-            )}
+            ? (obj.collect ?? []).map((goal) => {
+                const have = Math.min(collected[goal.type] ?? 0, goal.count)
+                const done = have >= goal.count
+                return (
+                  <div key={goal.type} className="flex items-center gap-1.5 min-w-[118px] flex-1">
+                    <img
+                      src={TILE_IMG[goal.type]}
+                      alt={TILE_META[goal.type].name}
+                      className="w-8 h-8 object-contain drop-shadow shrink-0"
+                      draggable={false}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[10px] leading-tight text-[#5d3a1a] font-bold truncate">
+                        {done ? '✓ ' : 'Collect '}
+                        {goal.count} {TILE_META[goal.type].name}
+                        {goal.count > 1 ? '' : ''}
+                      </p>
+                      <ProgressBar value={have / goal.count} className="h-2 mt-0.5" />
+                      <p className={cn('text-[9px] font-bold tabular-nums', done ? 'text-[#4c8a28]' : 'text-[#7a5c34]')}>
+                        {have} / {goal.count}
+                      </p>
+                    </div>
+                  </div>
+                )
+              })
+            : (() => {
+                const target = obj.score ?? level.star3
+                const have = Math.min(score, target)
+                const done = score >= target
+                return (
+                  <div className="flex items-center gap-1.5 flex-1 min-w-[118px]">
+                    <img src={A('star-sparkle')} alt="" className="w-8 h-8 object-contain drop-shadow shrink-0" draggable={false} />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[10px] leading-tight text-[#5d3a1a] font-bold truncate">
+                        {done ? '✓ ' : ''}Weave {target.toLocaleString()} threads
+                      </p>
+                      <ProgressBar value={have / target} className="h-2 mt-0.5" />
+                      <p className={cn('text-[9px] font-bold tabular-nums', done ? 'text-[#4c8a28]' : 'text-[#7a5c34]')}>
+                        {have.toLocaleString()} / {target.toLocaleString()}
+                      </p>
+                    </div>
+                  </div>
+                )
+              })()}
+        </div>
+        <div className="hud-pill rounded-2xl px-3 py-1 flex flex-col items-center justify-center min-w-[92px]" aria-live="polite">
+          <span className="text-[9px] uppercase tracking-widest text-[#d9c79a] font-bold">Score</span>
+          <CountUp value={score} duration={500} className="font-display text-lg font-extrabold" />
+          <div className="flex gap-0.5 mt-0.5" aria-hidden>
+            {[0, 1, 2].map((i) => (
+              <img
+                key={i}
+                src={A('star-sparkle')}
+                alt=""
+                draggable={false}
+                className={cn('w-3 h-3 object-contain', i === 0 ? (score > 0 ? '' : 'grayscale opacity-40') : score >= (i === 1 ? level.star2 : level.star3) ? '' : 'grayscale opacity-40')}
+              />
+            ))}
+          </div>
         </div>
       </section>
 
@@ -633,16 +780,41 @@ export function PlayScreen({
             ref={boardRef}
             role="application"
             aria-label={`${level.rows} by ${level.cols} weaving board. Drag or tap charms to swap.`}
-            className="relative w-full h-full rounded-[0.7rem] overflow-hidden touch-none select-none"
+            className={cn(
+              'relative w-full h-full rounded-[0.7rem] overflow-hidden touch-none select-none',
+              armedBooster === 'null' && 'cursor-crosshair',
+            )}
+            style={{
+              backgroundImage: 'linear-gradient(180deg, #1c2e1f 0%, #16251a 100%)',
+            }}
             onPointerDown={onPointerDown}
             onPointerMove={onPointerMove}
             onPointerUp={onPointerUp}
             onPointerCancel={() => (dragRef.current = null)}
-            style={{
-              backgroundImage: 'repeating-conic-gradient(rgba(255,255,255,0.05) 0% 25%, transparent 0% 50%)',
-              backgroundSize: `${100 / level.cols}% ${100 / level.rows}%`,
-            }}
+            onContextMenu={(e) => e.preventDefault()}
           >
+            {/* cell sockets */}
+            {size.w > 0 &&
+              Array.from({ length: level.rows * level.cols }).map((_, i) => {
+                const r = Math.floor(i / level.cols)
+                const c = i % level.cols
+                return (
+                  <div
+                    key={i}
+                    aria-hidden
+                    className="absolute"
+                    style={{
+                      left: `${(c * 100) / level.cols}%`,
+                      top: `${(r * 100) / level.rows}%`,
+                      width: `${100 / level.cols}%`,
+                      height: `${100 / level.rows}%`,
+                    }}
+                  >
+                    <div className={cn('absolute inset-[5%] board-cell', (r + c) % 2 === 1 && 'board-cell-alt')} />
+                  </div>
+                )
+              })}
+
             {grid.flatMap((row, r) =>
               row.map((t, c) => {
                 if (!t) return null
@@ -698,19 +870,34 @@ export function PlayScreen({
             )}
           </div>
         </div>
-
       </main>
 
-      <footer className="relative z-10 text-center pb-2">
-        <p className="text-[10px] text-[#f4e9c8]/60 ww-text-outline font-medium px-4 truncate">
-          {level.hint}
+      {/* boosters + hint */}
+      <footer className="relative z-20 px-4 pb-2 pt-0.5 flex items-center justify-between gap-3">
+        <BoosterButton
+          kind="lens"
+          count={inventory.lens}
+          armed={armedBooster === 'lens'}
+          disabled={busy || status !== 'playing'}
+          onClick={() => armBooster('lens')}
+        />
+        <p className="flex-1 min-w-0 text-center text-[10px] leading-tight text-[#f4e9c8]/85 ww-text-outline font-medium">
+          {armedBooster === 'null' ? 'Tap any charm to unweave it…' : level.hint}
         </p>
+        <BoosterButton
+          kind="null"
+          count={inventory.null}
+          armed={armedBooster === 'null'}
+          disabled={busy || status !== 'playing'}
+          onClick={() => armBooster('null')}
+        />
       </footer>
 
       {/* modals */}
       {paused && status === 'playing' && (
         <PauseModal
           level={level}
+          isDaily={isDaily}
           onResume={() => {
             pausedRef.current = false
             setPaused(false)
@@ -721,39 +908,75 @@ export function PlayScreen({
             setPaused(false)
             resetLevel()
           }}
-          onOptions={() => setShowOptions(true)}
+          onOptions={() => onOpenInstruments()}
           onQuit={() => {
             pausedRef.current = false
             setPaused(false)
-            onExitToAtlas()
+            onExit()
           }}
         />
       )}
-      {showOptions && (
-        <OptionsModal
-          sound={sound}
-          vibration={vibration}
-          onSound={onSound}
-          onVibration={onVibration}
-          playerName={playerName}
-          onRename={() => {}}
-          onClose={() => setShowOptions(false)}
-        />
-      )}
-      {result && won && (
-        <LevelCompleteModal
+      {result && status === 'won' && (
+        <FolioSealedModal
           level={level}
           result={result}
-          isLastLevel={level.id >= LEVELS.length}
+          rewards={rewards}
+          isDaily={isDaily}
+          hasNext={isDaily || hasNextStage}
+          onNext={() => (isDaily ? onExit() : onPlayLevel(level.id + 1))}
           onReplay={resetLevel}
-          onAtlas={onExitToAtlas}
-          onNext={() => onPlayLevel(Math.min(LEVELS.length, level.id + 1))}
+          onExit={onExit}
         />
       )}
-      {result && !won && (
-        <LevelFailedModal level={level} score={result.score} onReplay={resetLevel} onAtlas={onExitToAtlas} />
+      {result && status === 'lost' && (
+        <FolioLostModal level={level} isDaily={isDaily} score={result.score} onReplay={resetLevel} onExit={onExit} />
       )}
     </div>
+  )
+}
+
+/* ---------------- booster button ---------------- */
+
+function BoosterButton({
+  kind,
+  count,
+  armed,
+  disabled,
+  onClick,
+}: {
+  kind: BoosterKind
+  count: number
+  armed: boolean
+  disabled?: boolean
+  onClick: () => void
+}) {
+  const label = kind === 'lens' ? 'Lens' : 'Null'
+  return (
+    <button
+      type="button"
+      aria-label={`${label} booster — ${count} remaining${kind === 'lens' ? '. Instantly weaves one thread without spending a move.' : '. Unweaves any single charm without spending a move.'}`}
+      disabled={disabled || count <= 0}
+      onClick={onClick}
+      className={cn('booster-btn w-[54px] h-[54px] shrink-0', armed && 'booster-armed')}
+    >
+      {kind === 'lens' ? (
+        <svg viewBox="0 0 24 24" className="w-6 h-6" fill="none" stroke="#5d3a1a" strokeWidth="2.4" strokeLinecap="round" aria-hidden>
+          <circle cx="10.5" cy="10.5" r="6.2" />
+          <path d="m15.3 15.3 5 5" />
+        </svg>
+      ) : (
+        <svg viewBox="0 0 24 24" className="w-6 h-6" fill="none" stroke="#5d3a1a" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <path d="M14.5 4.5 19 9l-2.5 2.5L12 7l2.5-2.5ZM12 7 5 14v5h5l7-7" />
+          <path d="m13 12 5-5" />
+        </svg>
+      )}
+      <span className="text-[8px] font-display font-extrabold uppercase tracking-widest text-[#5d3a1a] leading-none">
+        {label}
+      </span>
+      <span className="booster-count" aria-hidden>
+        {count}
+      </span>
+    </button>
   )
 }
 
@@ -785,7 +1008,7 @@ function TileView({
         : ''
   return (
     <div
-      className={cn('absolute left-0 top-0', tile.clearing && 'tile-clearing')}
+      className={cn('absolute left-0 top-0 tile-anim-fall', tile.clearing && 'tile-clearing')}
       style={{
         width: `${100 / cols}%`,
         height: `${100 / rows}%`,
@@ -810,7 +1033,7 @@ function TileView({
           alt=""
           draggable={false}
           className={cn(
-            'w-full h-full object-contain drop-shadow-[0_3px_3px_rgba(0,0,0,0.4)] pointer-events-none',
+            'tile-img w-full h-full object-contain drop-shadow-[0_3px_3px_rgba(0,0,0,0.4)] pointer-events-none',
             tile.special === 'prism' && 'anim-prism scale-110',
           )}
         />
@@ -827,6 +1050,3 @@ function TileView({
     </div>
   )
 }
-
-// keep tree-shaking honest about Special type usage in docs
-export type { Special }
