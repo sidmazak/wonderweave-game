@@ -6,7 +6,7 @@ import { preloadGame, type PreloadHandle } from '@/lib/game/preload'
 import { getLevel } from '@/lib/game/levels'
 import { dateKey, getDailyLevel } from '@/lib/game/daily'
 import { discover } from '@/lib/game/codex'
-import { initAudio, setMusicTheme, sfx } from '@/lib/game/sound'
+import { setMusicTheme } from '@/lib/game/sound'
 import type { LevelResult } from '@/lib/game/types'
 import { useProgress } from '@/hooks/use-progress'
 import { SettingsProvider, useAudioGate, useSettings } from './settings'
@@ -54,6 +54,13 @@ function GameRoot() {
     preloadRef.current = handle
     void handle.done
   }, [screen])
+
+  /* no "tap to begin" gate — glide straight into the world once it is woven */
+  React.useEffect(() => {
+    if (screen !== 'splash' || loadPct < 100) return
+    const t = setTimeout(() => setScreen('meta'), 700)
+    return () => clearTimeout(t)
+  }, [screen, loadPct])
 
   // music theming per view
   React.useEffect(() => {
@@ -163,12 +170,6 @@ function GameRoot() {
 
   const level = levelId === 0 ? getDailyLevel(dateKey()) : getLevel(levelId)
 
-  const beginJourney = React.useCallback(() => {
-    initAudio()
-    sfx.ui()
-    setScreen('meta')
-  }, [])
-
   return (
     <div
       className={cnRoot(settings.reducedMotion, settings.highContrast, !settings.particles)}
@@ -176,9 +177,7 @@ function GameRoot() {
       aria-label="Wonderweave game"
     >
       <div className="ww-app-root relative w-full max-w-[460px] h-dvh flex flex-col overflow-hidden shadow-[0_0_80px_rgba(0,0,0,0.6)]">
-        {screen === 'splash' && (
-          <LoadingScreen pct={loadPct} ready={loadPct >= 100} onBegin={beginJourney} />
-        )}
+        {screen === 'splash' && <LoadingScreen pct={loadPct} />}
 
         {screen === 'meta' && (
           <>
@@ -211,6 +210,7 @@ function GameRoot() {
               playerName={prog.player.name || 'Weaver'}
               onRename={prog.setName}
               onHowTo={() => setShowHowTo(true)}
+              onResetAll={prog.resetAll}
               onBack={() => setShowInstruments(false)}
             />
           </div>
@@ -222,17 +222,12 @@ function GameRoot() {
   )
 }
 
-/* ---------------- loading screen — homepage scene + REAL progress ---------------- */
+/* -------- loading screen — homepage scene + REAL progress, no click gate -------- */
 
-function LoadingScreen({ pct, ready, onBegin }: { pct: number; ready: boolean; onBegin: () => void }) {
+function LoadingScreen({ pct }: { pct: number }) {
   return (
-    <button
-      type="button"
-      aria-label={ready ? 'Begin your journey' : `Loading Wonderweave — ${pct}%`}
-      onClick={ready ? onBegin : undefined}
-      className="relative flex-1 flex flex-col cursor-pointer select-none"
-    >
-      {/* the exact homepage scene — seamless handoff when the journey begins */}
+    <div className="relative flex-1 flex flex-col select-none" aria-label={`Loading Wonderweave — ${pct}%`}>
+      {/* the exact homepage scene — seamless handoff when the world is ready */}
       <img
         src={A('bg-castle')}
         alt=""
@@ -241,68 +236,39 @@ function LoadingScreen({ pct, ready, onBegin }: { pct: number; ready: boolean; o
       />
       <div className="absolute inset-0 bg-gradient-to-b from-[#0e1c14]/25 via-transparent to-[#0e1c14]/70" />
       <Twinkles count={8} />
-      <Fireflies count={8} />
-      <FallingLeaves count={8} />
+      <Fireflies count={10} />
+      <FallingLeaves count={10} />
 
       {/* logo — same wobble as the home screen so the two scenes feel continuous */}
       <div className="relative z-10 flex-1 flex flex-col items-center justify-center gap-2 px-6">
         <img
           src={A('logo')}
-          alt="Wonderweave — Threads of a Forgotten World"
+          alt="Wonderweave"
           draggable={false}
           className="w-[280px] max-w-[82vw] anim-wobble drop-shadow-[0_10px_24px_rgba(0,0,0,0.55)]"
         />
 
         {/* parchment plaque with the real loader */}
         <div className="mt-8 w-[260px] max-w-[80vw] goal-card px-4 py-3 text-center anim-float">
-          {ready ? (
-            <>
-              <p className="font-display font-extrabold uppercase tracking-[0.2em] text-[#5d3a1a] text-sm">
-                Tap to Begin
-              </p>
-              <p className="text-[10px] italic text-[#7a5c34] mt-0.5">The threads are warm and waiting…</p>
-            </>
-          ) : (
-            <>
-              <p className="font-display font-extrabold uppercase tracking-[0.2em] text-[#5d3a1a] text-xs mb-2">
-                Weaving the world… {pct}%
-              </p>
-              <div
-                className="ww-loader-track"
-                role="progressbar"
-                aria-valuemin={0}
-                aria-valuemax={100}
-                aria-valuenow={pct}
-                aria-label="Loading progress"
-              >
-                <div className="ww-loader-fill" style={{ width: `${Math.max(4, pct)}%` }} />
-              </div>
-              <p className="text-[10px] italic text-[#7a5c34] mt-2">
-                {pct < 40 ? 'Gathering threads…' : pct < 75 ? 'Waking the bunnies…' : 'Opening the Folio…'}
-              </p>
-            </>
-          )}
+          <p className="font-display font-extrabold uppercase tracking-[0.2em] text-[#5d3a1a] text-xs mb-2">
+            Weaving the world… {pct}%
+          </p>
+          <div
+            className="ww-loader-track"
+            role="progressbar"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={pct}
+            aria-label="Loading progress"
+          >
+            <div className="ww-loader-fill" style={{ width: `${Math.max(4, pct)}%` }} />
+          </div>
+          <p className="text-[10px] italic text-[#7a5c34] mt-2">
+            {pct < 40 ? 'Gathering threads…' : pct < 75 ? 'Waking the bunnies…' : 'Opening the Folio…'}
+          </p>
         </div>
       </div>
-
-      {/* begin button — appears with a warm pulse once loading truly completes */}
-      {ready && (
-        <div className="relative z-10 pb-16 flex justify-center">
-          <span
-            className="play-hero inline-flex items-center gap-2 px-10 py-3.5 font-display font-bold uppercase tracking-[0.18em] text-lg anim-ready-pulse"
-            aria-hidden
-          >
-            Begin
-          </span>
-        </div>
-      )}
-
-      <footer className="relative z-10 pb-3 text-center">
-        <p className="text-[10px] tracking-[0.3em] uppercase text-[#f4e9c8]/70 font-semibold ww-text-outline">
-          Threads of a Forgotten World
-        </p>
-      </footer>
-    </button>
+    </div>
   )
 }
 

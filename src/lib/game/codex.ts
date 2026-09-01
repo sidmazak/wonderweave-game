@@ -100,6 +100,17 @@ export function discover(...ids: string[]): string[] {
   return fresh
 }
 
+/** Wipe every discovery (used by Reset All in the Instruments). */
+export function resetCodex(): void {
+  if (typeof window === 'undefined') return
+  try {
+    localStorage.removeItem(LS_KEY)
+  } catch {
+    /* ignore */
+  }
+  window.dispatchEvent(new CustomEvent(EVENT))
+}
+
 /** React hook — live discovery set + stats. */
 export function useCodex(): { found: Set<string>; count: number; total: number } {
   const [found, setFound] = React.useState<Set<string>>(new Set())

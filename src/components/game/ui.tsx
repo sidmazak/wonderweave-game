@@ -529,30 +529,41 @@ function useMounted(): boolean {
 }
 
 const LEAF_COLORS = [
-  { fill: '#9cc46a', vein: '#5d7a2f' },
-  { fill: '#c9b45c', vein: '#8a6a2a' },
-  { fill: '#d9a24e', vein: '#96662a' },
-  { fill: '#c97e52', vein: '#8a4a2e' },
-  { fill: '#7dab4a', vein: '#4f6b28' },
+  { fill: '#a8d474', vein: '#5d7a2f' },
+  { fill: '#d4bc5e', vein: '#8a6a2a' },
+  { fill: '#e2a854', vein: '#96662a' },
+  { fill: '#d48858', vein: '#8a4a2e' },
+  { fill: '#8ab854', vein: '#4f6b28' },
+  { fill: '#c9b45c', vein: '#7a5c20' },
 ]
 
-/** Gentle autumn leaves drifting down the screen (pure SVG, battery-cheap). */
-export function FallingLeaves({ count = 9, className }: { count?: number; className?: string }) {
+/** Gentle autumn leaves drifting down the screen (pure SVG, transform/opacity only).
+    `bold` renders a bigger, brighter layer that floats in FRONT of the scene. */
+export function FallingLeaves({
+  count = 12,
+  className,
+  bold = false,
+}: {
+  count?: number
+  className?: string
+  bold?: boolean
+}) {
   const mounted = useMounted()
   const leaves = React.useMemo(
     () =>
       Array.from({ length: count }).map((_, i) => ({
         id: i,
-        left: Math.random() * 96,
-        size: 14 + Math.random() * 16,
-        dur: 11 + Math.random() * 12,
-        delay: -Math.random() * 20,
-        sway: 26 + Math.random() * 40,
-        spin: 180 + Math.random() * 320,
+        left: Math.random() * 94,
+        size: (bold ? 26 : 15) + Math.random() * (bold ? 20 : 17),
+        dur: (bold ? 9 : 10) + Math.random() * 11,
+        delay: -Math.random() * 22,
+        sway: (bold ? 40 : 28) + Math.random() * (bold ? 46 : 38),
+        spin: 200 + Math.random() * 340,
         color: LEAF_COLORS[i % LEAF_COLORS.length],
-        opacity: 0.5 + Math.random() * 0.35,
+        shape: i % 2, // 0 = round leaf, 1 = pointed leaf
+        opacity: bold ? 0.82 + Math.random() * 0.18 : 0.55 + Math.random() * 0.4,
       })),
-    [count],
+    [count, bold],
   )
   if (!mounted) return null
   return (
@@ -560,7 +571,7 @@ export function FallingLeaves({ count = 9, className }: { count?: number; classN
       {leaves.map((l) => (
         <span
           key={l.id}
-          className="absolute -top-8 block will-change-transform"
+          className="absolute -top-10 block will-change-transform"
           style={{
             left: `${l.left}%`,
             width: l.size,
@@ -571,31 +582,41 @@ export function FallingLeaves({ count = 9, className }: { count?: number; classN
             animation: `ww-leaf-fall ${l.dur}s linear ${l.delay}s infinite`,
           }}
         >
-          <svg viewBox="0 0 20 20" className="h-full w-full drop-shadow-[0_2px_2px_rgba(0,0,0,0.25)]">
-            <path d="M2 10 C 5 3.5, 15 3.5, 18 10 C 15 16.5, 5 16.5, 2 10 Z" fill={l.color.fill} stroke={l.color.vein} strokeWidth="0.8" />
-            <path d="M3.5 10 H 17 M10 10 C 9 7.5, 9 5.5, 10 4 M10 10 C 11 12.5, 11 14.5, 10 16" stroke={l.color.vein} strokeWidth="0.9" strokeLinecap="round" fill="none" opacity="0.75" />
-          </svg>
+          {l.shape === 0 ? (
+            /* round storybook leaf */
+            <svg viewBox="0 0 20 20" className="h-full w-full drop-shadow-[0_2px_3px_rgba(0,0,0,0.35)]">
+              <path d="M2 10 C 5 3.5, 15 3.5, 18 10 C 15 16.5, 5 16.5, 2 10 Z" fill={l.color.fill} stroke={l.color.vein} strokeWidth="1" />
+              <path d="M3.5 10 H 17 M10 10 C 9 7.5, 9 5.5, 10 4 M10 10 C 11 12.5, 11 14.5, 10 16" stroke={l.color.vein} strokeWidth="1" strokeLinecap="round" fill="none" opacity="0.8" />
+              <ellipse cx="7.4" cy="7.6" rx="2.6" ry="1.4" fill="rgba(255,255,255,0.28)" transform="rotate(-28 7.4 7.6)" />
+            </svg>
+          ) : (
+            /* pointed willow leaf */
+            <svg viewBox="0 0 20 20" className="h-full w-full drop-shadow-[0_2px_3px_rgba(0,0,0,0.35)]">
+              <path d="M10 1.5 C 15.5 6, 16.5 13, 10 18.5 C 3.5 13, 4.5 6, 10 1.5 Z" fill={l.color.fill} stroke={l.color.vein} strokeWidth="1" />
+              <path d="M10 3 V 17 M10 7 L 7 5.4 M10 10 L 6.6 8.2 M10 13 L 7.2 11.4 M10 7 L 13 5.4 M10 10 L 13.4 8.2 M10 13 L 12.8 11.4" stroke={l.color.vein} strokeWidth="0.85" strokeLinecap="round" fill="none" opacity="0.75" />
+            </svg>
+          )}
         </span>
       ))}
     </div>
   )
 }
 
-/** Soft glowing fireflies wandering over the scene. */
-export function Fireflies({ count = 10, className }: { count?: number; className?: string }) {
+/** Soft glowing fireflies wandering over the scene — warm lantern-light dots. */
+export function Fireflies({ count = 12, className }: { count?: number; className?: string }) {
   const mounted = useMounted()
   const flies = React.useMemo(
     () =>
       Array.from({ length: count }).map((_, i) => ({
         id: i,
-        left: 6 + Math.random() * 88,
-        top: 22 + Math.random() * 68,
-        size: 5 + Math.random() * 6,
-        dur: 9 + Math.random() * 9,
-        delay: -Math.random() * 12,
-        dx: (Math.random() * 2 - 1) * 70,
-        dy: -20 - Math.random() * 60,
-        glow: 2.4 + Math.random() * 3.2,
+        left: 5 + Math.random() * 90,
+        top: 20 + Math.random() * 72,
+        size: 6 + Math.random() * 7,
+        dur: 8 + Math.random() * 10,
+        delay: -Math.random() * 14,
+        dx: (Math.random() * 2 - 1) * 80,
+        dy: -24 - Math.random() * 66,
+        glow: 3 + Math.random() * 3.5,
       })),
     [count],
   )
@@ -611,8 +632,8 @@ export function Fireflies({ count = 10, className }: { count?: number; className
             top: `${f.top}%`,
             width: f.size,
             height: f.size,
-            background: 'radial-gradient(circle, #fff7c8 0%, #ffe98a 45%, rgba(255, 214, 110, 0) 75%)',
-            boxShadow: `0 0 ${f.glow * 3}px ${f.glow}px rgba(255, 236, 150, 0.55)`,
+            background: 'radial-gradient(circle, #fffdf0 0%, #ffec9e 40%, rgba(255, 214, 110, 0) 72%)',
+            boxShadow: `0 0 ${f.glow * 3.4}px ${f.glow * 1.15}px rgba(255, 238, 160, 0.62)`,
             ['--dx' as string]: `${f.dx}px`,
             ['--dy' as string]: `${f.dy}px`,
             animation: `ww-firefly-drift ${f.dur}s ease-in-out ${f.delay}s infinite alternate, ww-firefly-glow ${2.2 + (f.id % 4) * 0.7}s ease-in-out ${f.id * 0.35}s infinite`,

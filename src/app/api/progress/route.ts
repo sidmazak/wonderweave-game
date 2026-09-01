@@ -23,6 +23,24 @@ export async function GET(req: NextRequest) {
 }
 
 /**
+ * DELETE /api/progress?playerId=… — erase every level record for a player
+ * (used by "Reset All Progress" in the Instruments).
+ */
+export async function DELETE(req: NextRequest) {
+  try {
+    const playerId = req.nextUrl.searchParams.get('playerId') ?? ''
+    if (!playerId) {
+      return NextResponse.json({ error: 'playerId required' }, { status: 400 })
+    }
+    await db.levelProgress.deleteMany({ where: { playerId } })
+    return NextResponse.json({ ok: true })
+  } catch (err) {
+    console.error('DELETE /api/progress failed:', err)
+    return NextResponse.json({ error: 'internal error' }, { status: 500 })
+  }
+}
+
+/**
  * POST /api/progress — record a finished level { playerId, level, score, stars, playerName? }
  * Keeps the max stars / best score per (player, level). Auto-creates the player.
  */

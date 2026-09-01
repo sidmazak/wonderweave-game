@@ -1,7 +1,7 @@
 'use client'
 
 import * as React from 'react'
-import { Music, Volume2, Vibrate, Sparkles, Wind, Contrast, Languages, ChevronRight, LifeBuoy, ScrollText } from 'lucide-react'
+import { Music, Volume2, Vibrate, Sparkles, Wind, Contrast, Languages, ChevronRight, LifeBuoy, ScrollText, Sprout } from 'lucide-react'
 import { A } from '@/lib/game/assets'
 import { initAudio, sfx } from '@/lib/game/sound'
 import { useSettings } from './settings'
@@ -29,16 +29,20 @@ export function InstrumentsScreen({
   playerName,
   onRename,
   onHowTo,
+  onResetAll,
   onBack,
 }: {
   playerName: string
   onRename: (n: string) => void
   onHowTo: () => void
+  onResetAll: () => void
   onBack: () => void
 }) {
   const { settings, update } = useSettings()
   const [name, setName] = React.useState(playerName)
   const [creditsOpen, setCreditsOpen] = React.useState(false)
+  const [resetOpen, setResetOpen] = React.useState(false)
+  const [resetDone, setResetDone] = React.useState(false)
 
   React.useEffect(() => setName(playerName), [playerName])
 
@@ -194,12 +198,86 @@ export function InstrumentsScreen({
               </WoodButton>
             </div>
 
+            {/* ---------------- DATA — reset everything ---------------- */}
+            <SectionLabel>Data</SectionLabel>
+            <button
+              type="button"
+              className="settings-row w-full text-left cursor-pointer !border-[#a93a34]/55 !bg-[#fdf3e0]"
+              aria-label="Reset all progress — erase stars, lumens, instruments, daily streak and codex"
+              onClick={() => {
+                initAudio()
+                sfx.ui()
+                setResetDone(false)
+                setResetOpen(true)
+              }}
+            >
+              <span className="flex flex-col gap-0.5">
+                <RowLabel icon={<Sprout className="w-5 h-5 text-[#a93a34]" />}>
+                  <span className="text-[#8c2f2a]">Reset All Progress</span>
+                </RowLabel>
+                <span className="text-[10px] text-[#8a6a3a] font-medium pl-7">
+                  Stars, lumens, instruments, daily streak &amp; codex — a blank folio.
+                </span>
+              </span>
+              <ChevronRight className="w-4 h-4 text-[#a93a34]" aria-hidden />
+            </button>
+
             <p className="text-[10px] text-[#8a6a3a] text-center mt-6">
-              Wonderweave v2.0 — Threads of a Forgotten World
+              Wonderweave v3.2 — Threads of a Forgotten World
             </p>
           </div>
         </ParchmentPanel>
       </div>
+
+      {/* reset-all confirm modal */}
+      {resetOpen && (
+        <ModalShell onClose={() => setResetOpen(false)} labelledBy="reset-title">
+          <ParchmentPanel className="p-6 text-center">
+            <h2 id="reset-title" className="font-display text-2xl font-extrabold text-[#8c2f2a]">
+              Begin Anew?
+            </h2>
+            <hr className="ww-divider my-3" />
+            {resetDone ? (
+              <>
+                <p className="text-sm text-[#5d3a1a] font-semibold">The folio is blank once more.</p>
+                <p className="text-xs italic text-[#8a6a3a] mt-1">Every thread waits to be woven again.</p>
+              </>
+            ) : (
+              <>
+                <div className="cameo w-[104px] h-[92px] mx-auto my-1" aria-hidden>
+                  <img src={A('bunny-rest')} alt="" className="w-[74px] object-contain" draggable={false} />
+                </div>
+                <p className="text-sm text-[#5d3a1a] font-semibold">This erases your whole journey:</p>
+                <p className="text-xs text-[#8a6a3a] mt-1 leading-relaxed">
+                  all stars &amp; best scores, lumens, Lens &amp; Null instruments,
+                  your daily streak and every codex discovery.
+                </p>
+                <p className="text-[11px] italic text-[#a93a34] font-semibold mt-2">This cannot be undone.</p>
+              </>
+            )}
+            <div className="flex flex-col gap-2 mt-5">
+              {resetDone ? (
+                <WoodButton variant="leaf" onClick={() => setResetOpen(false)}>Return</WoodButton>
+              ) : (
+                <>
+                  <WoodButton
+                    variant="berry"
+                    onClick={() => {
+                      onResetAll()
+                      setResetDone(true)
+                    }}
+                  >
+                    Yes, Reset Everything
+                  </WoodButton>
+                  <WoodButton variant="leaf" onClick={() => setResetOpen(false)}>
+                    Keep My Journey
+                  </WoodButton>
+                </>
+              )}
+            </div>
+          </ParchmentPanel>
+        </ModalShell>
+      )}
 
       {/* credits modal */}
       {creditsOpen && (

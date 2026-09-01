@@ -70,9 +70,9 @@ export function HomeScreen({
           className="absolute top-[24%] w-20 opacity-25 anim-drift"
           style={{ animationDuration: '130s', animationDelay: '-60s' }}
         />
-        <Twinkles count={6} />
-        <Fireflies count={9} />
-        <FallingLeaves count={9} />
+        <Twinkles count={10} />
+        <Fireflies count={13} />
+        <FallingLeaves count={12} />
       </div>
 
       {/* top bar */}
@@ -92,16 +92,10 @@ export function HomeScreen({
         <div className="flex flex-col items-center gap-5 translate-y-3 sm:translate-y-5">
           <img
             src={A('logo')}
-            alt="Wonderweave — Threads of a Forgotten World"
+            alt="Wonderweave"
             draggable={false}
             className="w-[300px] max-w-[84vw] select-none anim-wobble drop-shadow-[0_10px_24px_rgba(0,0,0,0.55)]"
           />
-          <p
-            className="text-[11px] tracking-[0.3em] uppercase text-[#f4e9c8]/85 font-semibold ww-text-outline anim-sway-soft -mt-2"
-            style={{ transformOrigin: '50% 0%' }}
-          >
-            Threads of a Forgotten World
-          </p>
 
           {/* hero PLAY — gold-trimmed leaf plaque styled from the game's own art language */}
           <button
@@ -149,7 +143,8 @@ export function HomeScreen({
         </button>
       </div>
 
-      {/* footer whisper moved into the tagline above PLAY — keep the bottom clean for the mascot */}
+      {/* a few bold leaves drifting IN FRONT of the scene for storybook depth */}
+      <FallingLeaves count={4} className="z-[15]" bold />
     </div>
   )
 }

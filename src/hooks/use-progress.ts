@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { BoosterInventory, BoosterKind, DailyRewards, DailyState } from '@/lib/game/types'
 import { dateKey, dailyRewardFor, yesterdayKey } from '@/lib/game/daily'
-import { discover } from '@/lib/game/codex'
+import { discover, resetCodex } from '@/lib/game/codex'
 import { LEVELS_PER_CHAPTER } from '@/lib/game/levels'
 
 export interface LevelRecord {
@@ -251,6 +251,29 @@ export function useProgress() {
     [player.id],
   )
 
+  /** Wipe the whole journey — stars, lumens, instruments, daily streak and codex.
+      Settings (audio/volume toggles) are intentionally kept. */
+  const resetAll = useCallback(() => {
+    progressRef.current = {}
+    saveJSON(LS_PROGRESS, {})
+    setProgress({})
+    lumensRef.current = 40
+    saveJSON(LS_LUMENS, 40)
+    setLumens(40)
+    inventoryRef.current = { ...DEFAULT_INVENTORY }
+    saveJSON(LS_INVENTORY, DEFAULT_INVENTORY)
+    setInventory({ ...DEFAULT_INVENTORY })
+    const freshDaily: DailyState = { last: null, streak: 0 }
+    dailyRef.current = freshDaily
+    saveJSON(LS_DAILY, freshDaily)
+    setDaily(freshDaily)
+    resetCodex()
+    // best-effort server wipe so a refresh cannot resurrect old records
+    if (player.id) {
+      void fetch(`/api/progress?playerId=${encodeURIComponent(player.id)}`, { method: 'DELETE' }).catch(() => {})
+    }
+  }, [player.id])
+
   const totals = Object.values(progress).reduce(
     (acc, rec) => ({ stars: acc.stars + rec.stars, score: acc.score + rec.bestScore, levels: acc.levels + 1 }),
     { stars: 0, score: 0, levels: 0 },
@@ -294,6 +317,7 @@ export function useProgress() {
     saveResult,
     onLevelWin,
     setName,
+    resetAll,
     totals,
     highestUnlocked,
     highestChapter,

@@ -223,3 +223,18 @@ Work Log:
 
 Stage Summary:
 - Wonderweave v3.1: 1.0MB WebP art pipeline + true-progress loader, in-game wooden nav with Home tab, fixed lore page + chapter back + quit-to-home journeys, living homepage (wobble/hop/fireflies/leaves), fair reward economy with anti-farming, snappier Candy Crush pacing, mobile safe-areas + overscroll lock — all journeys browser-verified green
+
+---
+Task ID: 6 (v3.2 — no-gate load, home cleanup, particle pass, Reset All)
+Agent: main (Z.ai Code)
+Task: Remove TAP-TO-BEGIN/BEGIN gate; remove home tagline text; properly add fireflies + falling leaves; Reset All Progress in settings
+
+Work Log:
+- WonderweaveGame — LoadingScreen no longer a <button> gate: auto-advances to home 700ms after loadPct hits 100 (real-progress plaque kept, Begin plaque/button/footer tagline deleted); beginJourney removed; audio still unlocks on first tap via useAudioGate
+- HomeScreen — "Threads of a Forgotten World" tagline <p> deleted (circled in user screenshot); particle counts raised (Twinkles 10 / Fireflies 13 / Leaves 12) + new foreground layer <FallingLeaves count={4} bold className="z-[15]"> above content for depth
+- ui.tsx — FallingLeaves rebuilt: 2 leaf shapes (round storybook + pointed willow), 6 colors, bigger sizes, brighter fills + white sheen highlight, `bold` prop (26-46px, 0.82-1.0 opacity) for the front layer; Fireflies brightened (6-13px, stronger radial core + wider glow boxShadow)
+- Reset All: useProgress.resetAll() wipes progress/lumens(40)/inventory(3+3)/daily + resetCodex() (new export, event bus notified) + DELETE /api/progress?playerId (new route handler, deleteMany); InstrumentsScreen gains DATA section (berry-tinted row, Sprout icon) → "Begin Anew?" confirm modal (bunny cameo, lists everything erased, "This cannot be undone.") → done state "The folio is blank once more."; settings (audio/visual) intentionally preserved
+- InstrumentsScreen version stamp v2.0 → v3.2; onResetAll prop wired from GameRoot prog.resetAll
+
+Stage Summary:
+- E2E (agent-browser 430x860 + 1280x800): fresh load caught at "WEAVING THE WORLD… 100%" → auto-glide to home, zero clicks; home has NO tagline, leaves+fireflies clearly visible and moving (2 frames differ); reset flow: DATA row → confirm → localStorage {progress:{},lumens:40,inventory:3/3,daily:null,codex:removed} + DELETE /api/progress 200 in dev.log → done screen → home HUD 0★/40✦ live → survives reload (server can't resurrect) → PLAY starts fresh STAGE 1-1 with Lens 3/Null 3; zero console errors; lint + tsc clean (examples/skills pre-existing only)
