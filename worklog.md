@@ -138,3 +138,66 @@ Work Log:
 
 Stage Summary:
 - Full game loop E2E verified via agent-browser: LENS auto-move (60pts, free), real mouse-drag swap -> cascade (60->680 w/ prism+striped spawns), prism swap -> Combo x2 + 1925pts, LENS finish -> FOLIO SEALED 3 stars 5840 (+2300 bonus, rewards chips), CONTINUE -> stage 1-2, Pause menu, Instruments (sliders/toggles persist + ww-reduced/ww-hc classes), QUIT->Atlas, Chapter grid, Atlas back->Home, Daily play->DAILY PAGE SEALED (streak 1, sealed-for-today state, badge cleared), stage 1-2 collect goal 23/23 + win 8380, desktop 1280x800 + mobile 390x844 layouts, zero console errors
+
+---
+Task ID: 4-a
+Agent: general-purpose
+Task: Dialogs, Home, root polish (pause fix, endless rewire, music theming, particles)
+
+Work Log:
+- modals.tsx: PauseModal fixed per reference — removed DUPLICATED quit button, now exactly 4 buttons: Resume (leaf) / Restart / Options / Quit (berry, label "Daily Folio" when isDaily else "Quit to Atlas"); kept bunny-rest peeking at -top-[74px], X close (icon-close, w-9 h-9 top-3 right-3 -> onResume), RibbonBanner PAUSED + stage label, italic "The threads wait patiently…" whisper
+- modals.tsx: REMOVED LeaderboardModal + LeaderRow entirely (no global leaderboard anywhere in src now); dropped unused ProgressMap import
+- modals.tsx: added private Modal wrapper (ModalShell + body scroll-lock: adds ww-modal-open class + overflow hidden, restores on unmount — pairs with existing `body.ww-modal-open .ww-particle { animation-play-state: paused }` in globals.css); all 4 dialogs render through it (ModalShell itself lives in ui.tsx, out of scope)
+- modals.tsx: FolioSealedModal terminal-state button label "The tapestry is complete!" -> "Weave Ever Onward"; HowToModal image capped max-h-[62vh] object-contain; FolioLostModal + GoalChip kept as-is (already matched contract)
+- HomeScreen.tsx: new prop contract {totalStars, lumens, dailyDone, onPlay, onInstruments, onHowTo} — totalStarsMax + onLeaderboard/Trophy button removed; star HudPill shows bare number (unbounded) with aria-label; scene = bg-castle anim-ken + gradient + Twinkles(6) + Fireflies(9) + FallingLeaves(9) (FloatingPetals dropped per spec)
+- HomeScreen.tsx: logo+PLAY+HowTo column nudge translate-y-4 sm:translate-y-6 so PLAY sits slightly below vertical center; bunny-lantern bottom-[92px]; footer "Threads of a Forgotten World" unchanged; all targets >=44px with aria-labels
+- WonderweaveGame.tsx: removed TOTAL_LEVELS import, showLeaderboard state, LeaderboardModal render; HomeScreen gets new props only; AtlasScreen no longer receives totalStarsMax (parallel agent made it optional — verified totalStarsMax?: in AtlasScreen.tsx); PlayScreen hasNextStage={levelId > 0} (endless campaign)
+- WonderweaveGame.tsx: music theming useEffect — play->'play', splash->'home', meta map->'map', codex|relics->'night', home|daily->'home' via setMusicTheme from @/lib/game/sound; splash scene got subtle FallingLeaves(5) inside the tap-to-skip button (pointer-events-none built into component)
+- Verification: bunx tsc --noEmit | grep "modals|HomeScreen|WonderweaveGame" -> EMPTY; bun run lint -> clean (no output); dev.log latest compile green (✓ Compiled, GET / 200) — the earlier use-progress TOTAL_LEVELS SSR error was the parallel agent's file and is now resolved on their side; zero LeaderboardModal/onLeaderboard references remain in src
+
+Stage Summary:
+- Pause dialog now matches the storybook reference exactly (single quit path, 4 buttons), all dialogs lock body scroll + pause particles via the Modal wrapper, Home screen matches reference layout with leaves/fireflies/twinkles ambience, root is endless-aware (no star caps, hasNextStage always true in campaign) and themes music per view
+- Key files: src/components/game/modals.tsx, src/components/game/HomeScreen.tsx, src/components/game/WonderweaveGame.tsx (only these 3 touched)
+
+---
+Task ID: 4-b
+Agent: general-purpose
+Task: PlayScreen combos + board shake + perf/footer polish; endless Atlas/Chapter screens; uncap use-progress
+
+Work Log:
+- Read worklog (Tasks 1/2-a/2-b/3) + new levels.ts (chapterDef/LEVELS_PER_CHAPTER/TOTAL_CHAPTERS/chapterOf), engine.ts comboPlan/comboLabel/ComboKind matrix, sound.ts sfx.combo(tier)/sfx.urgent(), globals.css .combo-banner/.anim-board-shake
+- PlayScreen.tsx combos: attemptSwap now computes comboPlan(g1,a,b) right after the swap; validity = prism || combo !== null || findShapes; branch order combo → prism(exactly one) → normal cascadeLoop([a,b]); old naive specialVsSpecial 2-cell blast removed; combo branch does sfx.combo(tier 1/2/3: cross|megaCross|bigBomb=1, lineStorm|bombStorm=2, blackhole=3) + vibrate(24) + gold weave banner + combo.bonus into scoreRef + addFloater "+bonus" at a/b midpoint + blast(expandSpecials(g1, combo.cells)) + cascadeLoop
+- ComboInfo state extended with optional text; showCombo(n, text?) reused for both cascade "Combo ×N!" and special weaves ("Cross of Light!" etc.), auto-clear 1400ms; banner span restyled from navy gradient to .combo-banner (warm gold) keeping anim-combo/rounded-full/px-6/py-1.5/font-display/italic/font-black/text-3xl
+- Board shake: shakeId state + triggerShake() (timestamp re-set guard, 460ms timeout reset, unmount cleanup); fires when a blast clears >= 10 cells (inside blast) or on any special combo; board-frame gets anim-board-shake via className toggle (no key remount)
+- Footer: removed the hint <p> (level.hint + "Match 3 or more…" text gone); now BoosterButton Lens + empty flex-1 spacer aria-hidden + BoosterButton Null only; arming Null shows toast 'Tap any charm to unweave it…' (once per arming) and keeps crosshair cursor
+- Low-moves heartbeat: urgentRef tracks last value; on non-free moves decrementing into 3/2/1 fires sfx.urgent(); ref reset in resetLevel
+- Lore mapping: discover(`lore:${(((level.chapter - 1) % 12) + 1)}`) so echo chapters unlock the 12 core lore entries; bgKey now chapterOf(level.id).bg (endless-safe), CHAPTERS import dropped (also removed unused isSpecialActivation import)
+- Perf: TileView wrapped in React.memo; 49–64 static cell sockets extracted into React.useMemo keyed [level.rows, level.cols, size.w]; behaviour identical
+- AtlasScreen.tsx endless: TOTAL_LEVELS/tapestryDone removed; viewMax = max(TOTAL_CHAPTERS, chapterOf(highestUnlocked).id + 1), islands via Array.from chapterDef(1..viewMax); Continue card always shown (currentChapterId = chapterOf(highestUnlocked).id); star pill shows totalStars only with totalStarsMax?: number kept optional for root compat; footer "{n} stages sealed" (no denominator); chapter-node rows/lock rule/Continue badge unchanged
+- ChapterScreen.tsx: chapterDef(chapterId) replaces CHAPTERS[...] clamp (works for any chapter ≥ 1); STARS_PER_CHAPTER = LEVELS_PER_CHAPTER * 3
+- use-progress.ts: TOTAL_LEVELS import removed; highestUnlocked = uncapped while-loop over progress stars ((progress[n]?.stars ?? 0) >= 1 → n++, TS-strict-safe); highestChapter = ceil(highestUnlocked / LEVELS_PER_CHAPTER) uncapped; server sync + everything else untouched
+- Verified: bunx tsc --noEmit grep of PlayScreen|AtlasScreen|ChapterScreen|use-progress → ZERO errors (whole src/ is clean now); bun run lint exit 0; dev.log "✓ Compiled" + GET / 200 after edits
+
+Stage Summary:
+- Special+special weave matrix live in PlayScreen (6 combo kinds w/ tiered fanfare, gold storybook banners, bonus floaters, board shake), hint text removed from footer (toast-driven Null booster), low-moves heartbeat SFX, memoized tiles/sockets; Atlas + Chapter screens render endless echo chapters and use-progress unlocks chapters past 144 with no cap
+- Files touched (only the 4 in scope): src/components/game/PlayScreen.tsx, src/components/game/AtlasScreen.tsx, src/components/game/ChapterScreen.tsx, src/hooks/use-progress.ts
+
+---
+Task ID: 3 (v3 polish pass)
+Agent: main (Z.ai Code) + parallel subagents 4-a/4-b
+Task: Music/audio, dialogs, home ambience (leaves+fireflies), endless procedural levels, combo matrix, full polish
+
+Work Log:
+- levels.ts rewritten ENDLESS: chapterDef(id) cycles 12 hand-authored themes forever (romanNumeral for any chapter, "Echo II+" title suffix for laps beyond the first), getLevel unbounded w/ smooth exp difficulty curve + gentle endless objective scaling, echo laps reshuffle the tile palette; removed TOTAL_LEVELS; CORE_LEVELS=144 informational; hints rewritten (killed "Match 3 or more Woven Charms..." text)
+- engine.ts: full special+special combo matrix — comboPlan() cross/megaCross/bigBomb/lineStorm/bombStorm/blackhole w/ comboLabel + COMBO_BONUS (400..1500)
+- sound.ts: layered generative music engine (lookahead scheduler @90ms, 4 themes home/map/play/night, detuned pads + bass + melody random-walk + sparkles + soft ticks), DynamicsCompressor on music bus, visibilitychange suspend/resume, new sfx: combo(tier)/urgent/uiBack
+- ui.tsx: ParchmentPanel corner art FIXED (deco-flowers strips → crisp inline-SVG CornerVine flourishes — this was the broken dialog corner sticker); added FallingLeaves (SVG leaves, --sway/--spin CSS vars) + Fireflies (glow drift); all 4 ambient components client-only (useMounted) → SSR hydration mismatch eliminated; ww-particle class for kill-switch
+- globals.css: ww-leaf-fall / ww-firefly-drift+glow / ww-board-shake / ww-blast-ring keyframes, .combo-banner warm gold (replaced navy), .ww-no-particles .ww-particle, body.ww-modal-open pauses particles, reduced-motion extended
+- 4-a (subagent): modals.tsx — PauseModal exactly 4 buttons (RESUME/RESTART/OPTIONS/QUIT TO ATLAS; dup quit bug fixed), Modal wrapper w/ body scroll-lock; LeaderboardModal DELETED; FolioSealed terminal → "Weave Ever Onward"; HomeScreen rebuilt per reference (leaves 9 + fireflies 9 + twinkles, PLAY below center, no Trophy, stars w/o /max); WonderweaveGame — setMusicTheme per view (home/map/play/night), hasNextStage endless, splash leaves
+- 4-b (subagent): PlayScreen — comboPlan wiring (tier sfx + weave banner + bonus floater), board shake on >=10-cell blasts, footer hint text REMOVED (boosters only), sfx.urgent at 3/2/1 moves, lore id mod-12 for echoes, React.memo TileView + memoized cell sockets; Atlas/Chapter endless via chapterDef; use-progress highestUnlocked uncapped while-loop
+- /api/leaderboard route deleted (global leaderboard fully removed — local-only per user)
+- FIX (mine): HowToModal rebuilt natively — panel-howto.png was 122x278 thumbnail rendering tiny; new modal uses real tile/special/booster assets in a scrollable parchment book page
+- E2E (agent-browser, 430x860 + 1280x800): home leaves/fireflies render, pause dialog w/ vine corners + 4 buttons verified, real drag swaps + cascades + Lens booster + win (Folio Sealed 3 stars, +2200 bonus, reward chips), special+special combo fired (objective sealed in 1 weave) + "Combo ×2!" warm banner captured, Atlas endless list + chapter grid + star footer, Codex/Relics/Daily/Instruments all green, music slider keyboard-driven persists (0.83), pause→options→back flow, zero console errors, tsc+lint clean
+
+Stage Summary:
+- Wonderweave v3: endless procedural storybook match-3 — theme changes every 12 stages with Echo laps; full combo matrix; adaptive 4-layer music; fixed dialogs/home/ambience; local-only progression; all quality gates green

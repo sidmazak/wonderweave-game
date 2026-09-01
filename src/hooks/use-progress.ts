@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { BoosterInventory, BoosterKind, DailyRewards, DailyState } from '@/lib/game/types'
 import { dateKey, dailyRewardFor, yesterdayKey } from '@/lib/game/daily'
 import { discover } from '@/lib/game/codex'
-import { TOTAL_LEVELS } from '@/lib/game/levels'
+import { LEVELS_PER_CHAPTER } from '@/lib/game/levels'
 
 export interface LevelRecord {
   stars: number
@@ -246,18 +246,15 @@ export function useProgress() {
     { stars: 0, score: 0, levels: 0 },
   )
 
-  /** First level id without a star (sequential unlock across all 144 stages). */
+  /** First level id without a star — sequential unlock across the endless tapestry (uncapped). */
   const highestUnlocked = (() => {
     let n = 1
-    for (let i = 1; i <= TOTAL_LEVELS; i++) {
-      if (progress[i]?.stars >= 1) n = Math.min(TOTAL_LEVELS, i + 1)
-      else break
-    }
+    while ((progress[n]?.stars ?? 0) >= 1) n++
     return n
   })()
 
-  /** Highest chapter whose first stage is unlocked. */
-  const highestChapter = Math.min(12, Math.ceil(highestUnlocked / 12))
+  /** Highest chapter whose first stage is unlocked (uncapped — the world never ends). */
+  const highestChapter = Math.ceil(highestUnlocked / LEVELS_PER_CHAPTER)
 
   const isLevelUnlocked = useCallback((levelId: number) => levelId <= highestUnlocked, [highestUnlocked])
 

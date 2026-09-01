@@ -6,8 +6,26 @@ import { A, TILE_IMG } from '@/lib/game/assets'
 import { WoodButton, IconButton, ModalShell, ParchmentPanel, StarRow, CountUp, RibbonBanner } from './ui'
 import type { LevelDef, LevelResult } from '@/lib/game/types'
 import type { RewardSummary } from './PlayScreen'
-import type { ProgressMap } from '@/hooks/use-progress'
 import { stageTitle } from '@/lib/game/levels'
+
+/**
+ * Modal shell + document side effects: locks body scroll and pauses ambient
+ * particles while any dialog is open (see `body.ww-modal-open` in globals.css).
+ * ModalShell itself lives in ui.tsx; every dialog in this file renders through
+ * this wrapper so the effect is applied consistently.
+ */
+function Modal(props: React.ComponentProps<typeof ModalShell>) {
+  React.useEffect(() => {
+    document.body.classList.add('ww-modal-open')
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.classList.remove('ww-modal-open')
+      document.body.style.overflow = prev
+    }
+  }, [])
+  return <ModalShell {...props} />
+}
 
 /* ---------------- Pause (storybook style: sleepy bunny + button stack) ---------------- */
 
@@ -27,7 +45,7 @@ export function PauseModal({
   onQuit: () => void
 }) {
   return (
-    <ModalShell>
+    <Modal>
       <div className="relative">
         {/* sleeping bunny peeking over the panel */}
         <img
@@ -53,13 +71,12 @@ export function PauseModal({
             <WoodButton variant="leaf" onClick={onResume}>Resume</WoodButton>
             <WoodButton onClick={onRestart}>Restart</WoodButton>
             <WoodButton onClick={onOptions}>Options</WoodButton>
-            <WoodButton onClick={onQuit}>{isDaily ? 'Daily Folio' : 'Atlas'}</WoodButton>
-            <WoodButton variant="berry" onClick={onQuit}>Quit Folio</WoodButton>
+            <WoodButton variant="berry" onClick={onQuit}>{isDaily ? 'Daily Folio' : 'Quit to Atlas'}</WoodButton>
           </div>
           <p className="text-[11px] text-[#8a6a3a] mt-4 italic">The threads wait patiently…</p>
         </ParchmentPanel>
       </div>
-    </ModalShell>
+    </Modal>
   )
 }
 
@@ -85,7 +102,7 @@ export function FolioSealedModal({
   onExit: () => void
 }) {
   return (
-    <ModalShell>
+    <Modal>
       <div className="relative">
         <ParchmentPanel className="pt-6 pb-5 px-6 text-center overflow-hidden">
           {/* confetti */}
@@ -165,7 +182,7 @@ export function FolioSealedModal({
             {hasNext ? (
               <WoodButton variant="leaf" onClick={onNext}>Continue</WoodButton>
             ) : (
-              <WoodButton variant="leaf" onClick={onExit}>The tapestry is complete!</WoodButton>
+              <WoodButton variant="leaf" onClick={onExit}>Weave Ever Onward</WoodButton>
             )}
             <div className="flex justify-center gap-2">
               <WoodButton size="sm" onClick={onReplay} className="flex-1">Retry</WoodButton>
@@ -174,7 +191,7 @@ export function FolioSealedModal({
           </div>
         </ParchmentPanel>
       </div>
-    </ModalShell>
+    </Modal>
   )
 }
 
@@ -194,7 +211,7 @@ export function FolioLostModal({
   onExit: () => void
 }) {
   return (
-    <ModalShell>
+    <Modal>
       <ParchmentPanel className="pt-6 pb-5 px-6 text-center">
         <RibbonBanner size="sm" title="THE FOLIO SLIPS AWAY" subtitle={level.name} className="mb-3" />
         <div className="cameo w-[112px] h-[98px] mx-auto my-2">
@@ -211,114 +228,120 @@ export function FolioLostModal({
           <WoodButton onClick={onExit}>{isDaily ? 'Daily Folio' : 'Atlas'}</WoodButton>
         </div>
       </ParchmentPanel>
-    </ModalShell>
+    </Modal>
   )
 }
 
 /* ---------------- How to play ---------------- */
 
+function HowRow({ children, className }: { children: React.ReactNode; className?: string }) {
+  return <div className={cn('flex items-center justify-center gap-2 min-h-[52px]', className)}>{children}</div>
+}
+
+function HowText({ children }: { children: React.ReactNode }) {
+  return <p className="text-xs leading-snug text-[#6a4520] text-center font-medium">{children}</p>
+}
+
+function HowDivider() {
+  return <div className="ww-divider my-3" aria-hidden />
+}
+
 export function HowToModal({ onClose }: { onClose: () => void }) {
   return (
-    <ModalShell onClose={onClose} overlayClassName="z-[70]">
-      <div className="relative">
-        <button onClick={onClose} aria-label="How to play — tap to close" className="block cursor-pointer rounded-2xl overflow-hidden focus:outline-none focus-visible:ring-4 focus-visible:ring-[#ffd76e]">
-          <img
-            src={A('panel-howto')}
-            alt="How to play: match 3 or more charms. Create special tiles with matches of 4 or 5. Use power-ups. Clear objectives before runs out of moves."
-            className="w-full max-h-[70vh] object-contain drop-shadow-2xl"
-            draggable={false}
-          />
-        </button>
-        <IconButton img={A('icon-close')} label="Close" onClick={onClose} className="absolute -top-3 -right-3" />
-      </div>
-      <div className="mt-4 text-center">
-        <WoodButton variant="leaf" onClick={onClose}>Got it!</WoodButton>
-      </div>
-    </ModalShell>
-  )
-}
+    <Modal onClose={onClose} overlayClassName="z-[70]">
+      <ParchmentPanel className="pt-5 pb-5 px-5 max-h-[76vh] overflow-y-auto ww-scroll">
+        <div className="relative">
+          <IconButton img={A('icon-close')} label="Close how to play" onClick={onClose} className="absolute -top-2 -right-2 z-10 w-9 h-9" />
+          <h2 className="font-display text-2xl font-extrabold text-[#5d3a1a] text-center tracking-wide">How to Play</h2>
+          <p className="text-[11px] text-center text-[#8a6a3a] italic mt-0.5">The Weaver&apos;s little book of threads</p>
 
-/* ---------------- Leaderboard ---------------- */
+          <HowDivider />
 
-interface LeaderRow {
-  playerId: string
-  playerName: string
-  totalStars: number
-  totalScore: number
-}
+          {/* 1 — match */}
+          <HowRow>
+            <img src={TILE_IMG.leaf} alt="Verdant Leaf charm" className="w-9 h-9 object-contain drop-shadow" draggable={false} />
+            <img src={TILE_IMG.leaf} alt="" aria-hidden className="w-9 h-9 object-contain drop-shadow" draggable={false} />
+            <img src={TILE_IMG.leaf} alt="" aria-hidden className="w-9 h-9 object-contain drop-shadow" draggable={false} />
+            <span className="text-[#a97b42] font-bold" aria-hidden>→</span>
+            <img src={A('star-sparkle')} alt="" aria-hidden className="w-8 h-8 object-contain anim-glow-pulse" draggable={false} />
+          </HowRow>
+          <HowText>
+            Swap two neighbouring charms to line up <b>three or more</b> of a kind and weave them into Lumin Threads.
+          </HowText>
 
-export function LeaderboardModal({ onClose, myId }: { onClose: () => void; myId: string }) {
-  const [rows, setRows] = React.useState<LeaderRow[] | null>(null)
-  const [error, setError] = React.useState(false)
-  const load = React.useCallback(async () => {
-    setError(false)
-    try {
-      const res = await fetch('/api/leaderboard')
-      if (!res.ok) throw new Error('bad status')
-      const data = (await res.json()) as { leaders: LeaderRow[] }
-      setRows(data.leaders)
-    } catch {
-      setError(true)
-    }
-  }, [])
-  React.useEffect(() => {
-    void load()
-  }, [load])
+          <HowDivider />
 
-  const medalColors = ['from-[#ffe28a] to-[#e8963c]', 'from-[#e8e8f0] to-[#9aa0b4]', 'from-[#f0b48a] to-[#b4633c]']
+          {/* 2 — specials */}
+          <p className="text-[10px] uppercase tracking-[0.25em] text-[#8a5a2b] font-bold text-center mb-1.5">Forge Special Tiles</p>
+          <HowRow>
+            <span className="flex items-center gap-1.5 goal-card rounded-xl px-2 py-1.5">
+              <img src={TILE_IMG.drop} alt="" aria-hidden className="w-7 h-7 object-contain" draggable={false} />
+              <span className="special-lineH inline-flex items-center justify-center rounded-md">
+                <img src={TILE_IMG.drop} alt="Striped charm — clears a row or column" className="w-7 h-7 object-contain relative" draggable={false} />
+              </span>
+              <span className="text-[9px] font-bold text-[#6a4520] leading-tight">match 4<br />→ striped</span>
+            </span>
+            <span className="flex items-center gap-1.5 goal-card rounded-xl px-2 py-1.5">
+              <span className="special-bomb inline-flex items-center justify-center rounded-full">
+                <img src={TILE_IMG.flame} alt="Charm Burst — detonates a ring" className="w-7 h-7 object-contain" draggable={false} />
+              </span>
+              <span className="text-[9px] font-bold text-[#6a4520] leading-tight">L or T<br />→ burst</span>
+            </span>
+          </HowRow>
+          <HowRow className="mt-1.5 flex-col gap-1">
+            <span className="flex items-center gap-1.5 goal-card rounded-xl px-2.5 py-1.5">
+              <img src={A('fx-rainbow')} alt="Rainbow Prism" className="w-7 h-7 object-contain anim-prism shrink-0" draggable={false} />
+              <span className="text-[9px] font-bold text-[#6a4520] whitespace-nowrap">match 5 → prism</span>
+            </span>
+            <span className="text-[11px] text-[#6a4520] font-medium">The Prism trades places with any charm to sweep its whole colour away.</span>
+          </HowRow>
 
-  return (
-    <ModalShell onClose={onClose}>
-      <ParchmentPanel className="p-6">
-        <h2 className="font-display text-3xl font-extrabold text-[#5d3a1a] text-center">Top Weavers</h2>
-        <p className="text-center text-xs text-[#8a6a3a] mb-4">The finest tapestries across all realms</p>
-        {rows === null && !error && (
-          <div className="flex flex-col gap-2 mb-2" aria-busy="true">
-            {Array.from({ length: 5 }).map((_, i) => (
-              <div key={i} className="h-12 rounded-xl bg-[#5d3a1a]/10 animate-pulse" />
-            ))}
+          <HowDivider />
+
+          {/* 3 — combos */}
+          <p className="text-[10px] uppercase tracking-[0.25em] text-[#8a5a2b] font-bold text-center mb-1.5">Weave Specials Together</p>
+          <HowText>
+            Swap two special charms for astonishing weaves — crosses of light, storms of stripes, or the whole loom unravelling.
+          </HowText>
+
+          <HowDivider />
+
+          {/* 4 — boosters */}
+          <p className="text-[10px] uppercase tracking-[0.25em] text-[#8a5a2b] font-bold text-center mb-1.5">Instruments of Help</p>
+          <HowRow>
+            <span className="flex items-center gap-1.5">
+              <span className="booster-btn w-10 h-10" aria-hidden>
+                <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="#5d3a1a" strokeWidth="2.4" strokeLinecap="round">
+                  <circle cx="10.5" cy="10.5" r="6.2" />
+                  <path d="m15.3 15.3 5 5" />
+                </svg>
+              </span>
+              <span className="text-[11px] text-[#6a4520] font-medium"><b>Lens</b> weaves one thread for you — free.</span>
+            </span>
+          </HowRow>
+          <HowRow className="mt-1.5">
+            <span className="flex items-center gap-1.5">
+              <span className="booster-btn w-10 h-10" aria-hidden>
+                <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="#5d3a1a" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M14.5 4.5 19 9l-2.5 2.5L12 7l2.5-2.5ZM12 7 5 14v5h5l7-7" />
+                </svg>
+              </span>
+              <span className="text-[11px] text-[#6a4520] font-medium"><b>Null</b> gently unweaves any single charm.</span>
+            </span>
+          </HowRow>
+
+          <HowDivider />
+
+          <HowText>
+            Reach the goal before the moves run out. Leftover moves become bonus threads!
+          </HowText>
+
+          <div className="mt-4 text-center">
+            <WoodButton variant="leaf" onClick={onClose} className="w-full max-w-[200px]">Got it!</WoodButton>
           </div>
-        )}
-        {error && (
-          <div className="text-center py-6">
-            <p className="text-[#8a6a3a] text-sm mb-3">The messenger raven got lost…</p>
-            <WoodButton size="sm" onClick={() => void load()}>Retry</WoodButton>
-          </div>
-        )}
-        {rows !== null && rows.length === 0 && <p className="text-center text-sm text-[#8a6a3a] py-6">No tapestries yet — be the first!</p>}
-        {rows !== null && rows.length > 0 && (
-          <ol className="flex flex-col gap-2 max-h-[46vh] overflow-y-auto ww-scroll pr-1">
-            {rows.map((r, i) => (
-              <li
-                key={r.playerId}
-                className={cn(
-                  'flex items-center gap-3 rounded-xl px-3 py-2 border',
-                  r.playerId === myId ? 'bg-[#ffd76e]/35 border-[#c99a3c] anim-ring-pulse' : 'bg-[#5d3a1a]/8 border-[#7c4a1e]/20',
-                )}
-              >
-                <span
-                  className={cn(
-                    'w-8 h-8 rounded-full flex items-center justify-center font-display font-extrabold text-[#4a2e12] border-2 border-[#7c4a1e]/60 shrink-0',
-                    i < 3 ? `bg-gradient-to-b ${medalColors[i]}` : 'bg-[#d8c9a8] text-[#5d3a1a]',
-                  )}
-                >
-                  {i + 1}
-                </span>
-                <span className="flex-1 min-w-0 truncate font-semibold text-[#5d3a1a]">{r.playerName}</span>
-                <span className="flex items-center gap-1 text-sm font-bold text-[#a2701f] shrink-0">
-                  <img src={A('star-sparkle')} alt="stars" className="w-4 h-4" draggable={false} />
-                  {r.totalStars}
-                </span>
-                <span className="text-sm font-bold text-[#7c4a1e] tabular-nums w-16 text-right shrink-0">{r.totalScore.toLocaleString()}</span>
-              </li>
-            ))}
-          </ol>
-        )}
-        <div className="mt-4 text-center">
-          <WoodButton variant="leaf" onClick={onClose}>Close</WoodButton>
         </div>
       </ParchmentPanel>
-    </ModalShell>
+    </Modal>
   )
 }
 

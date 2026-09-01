@@ -222,6 +222,26 @@ export function LumenPill({ amount, className }: { amount: number; className?: s
 
 /* ---------------- Panels ---------------- */
 
+/** Hand-drawn leafy vine flourish used to dress parchment corners. */
+export function CornerVine({ className, flip = false }: { className?: string; flip?: boolean }) {
+  return (
+    <svg
+      viewBox="0 0 64 64"
+      aria-hidden
+      className={cn('pointer-events-none select-none absolute h-12 w-12', flip && 'rotate-180', className)}
+      fill="none"
+    >
+      <path d="M4 60 C 12 42, 24 24, 52 8" stroke="#8a6a3a" strokeWidth="2.4" strokeLinecap="round" opacity="0.85" />
+      <path d="M14 46 C 7 42, 5 35, 9 29 C 16 32, 18 39, 17 45 Z" fill="#93c063" stroke="#5d7a2f" strokeWidth="1.1" />
+      <path d="M26 33 C 21 26, 22 19, 28 15 C 33 20, 33 28, 29 33 Z" fill="#7dab4a" stroke="#5d7a2f" strokeWidth="1.1" />
+      <path d="M38 22 C 36 15, 39 9, 45 7 C 48 13, 46 20, 41 23 Z" fill="#a8cd74" stroke="#5d7a2f" strokeWidth="1.1" />
+      <circle cx="49" cy="13" r="2.6" fill="#e2695c" stroke="#a93a34" strokeWidth="1" />
+      <circle cx="54" cy="18" r="1.9" fill="#f0b48a" stroke="#a93a34" strokeWidth="0.9" />
+      <circle cx="8" cy="54" r="1.8" fill="#e8c25e" stroke="#a97b42" strokeWidth="0.9" />
+    </svg>
+  )
+}
+
 export function ParchmentPanel({
   children,
   className,
@@ -231,9 +251,9 @@ export function ParchmentPanel({
 }) {
   return (
     <div className={cn('panel-parchment relative', className)}>
-      {/* corner vines */}
-      <img src={A('deco-flowers')} alt="" aria-hidden className="absolute -top-2 -left-2 w-14 opacity-90 pointer-events-none select-none" draggable={false} />
-      <img src={A('deco-flowers')} alt="" aria-hidden className="absolute -bottom-2 -right-2 w-14 opacity-90 rotate-180 pointer-events-none select-none" draggable={false} />
+      {/* corner vine flourishes (pure SVG — crisp at any size) */}
+      <CornerVine className="-top-1 -left-1 opacity-90" />
+      <CornerVine flip className="-bottom-1 -right-1 opacity-90" />
       {children}
     </div>
   )
@@ -491,12 +511,116 @@ export function CountUp({ value, duration = 900, className }: { value: number; d
 
 /* ---------------- Ambient decorations ---------------- */
 
+/** True once the component has mounted on the client (avoids SSR hydration mismatches for random layouts). */
+function useMounted(): boolean {
+  const [mounted, setMounted] = React.useState(false)
+  React.useEffect(() => setMounted(true), [])
+  return mounted
+}
+
+const LEAF_COLORS = [
+  { fill: '#9cc46a', vein: '#5d7a2f' },
+  { fill: '#c9b45c', vein: '#8a6a2a' },
+  { fill: '#d9a24e', vein: '#96662a' },
+  { fill: '#c97e52', vein: '#8a4a2e' },
+  { fill: '#7dab4a', vein: '#4f6b28' },
+]
+
+/** Gentle autumn leaves drifting down the screen (pure SVG, battery-cheap). */
+export function FallingLeaves({ count = 9, className }: { count?: number; className?: string }) {
+  const mounted = useMounted()
+  const leaves = React.useMemo(
+    () =>
+      Array.from({ length: count }).map((_, i) => ({
+        id: i,
+        left: Math.random() * 96,
+        size: 14 + Math.random() * 16,
+        dur: 11 + Math.random() * 12,
+        delay: -Math.random() * 20,
+        sway: 26 + Math.random() * 40,
+        spin: 180 + Math.random() * 320,
+        color: LEAF_COLORS[i % LEAF_COLORS.length],
+        opacity: 0.5 + Math.random() * 0.35,
+      })),
+    [count],
+  )
+  if (!mounted) return null
+  return (
+    <div aria-hidden className={cn('ww-particle pointer-events-none absolute inset-0 overflow-hidden', className)}>
+      {leaves.map((l) => (
+        <span
+          key={l.id}
+          className="absolute -top-8 block will-change-transform"
+          style={{
+            left: `${l.left}%`,
+            width: l.size,
+            height: l.size,
+            opacity: l.opacity,
+            ['--sway' as string]: `${l.sway}px`,
+            ['--spin' as string]: `${l.spin}deg`,
+            animation: `ww-leaf-fall ${l.dur}s linear ${l.delay}s infinite`,
+          }}
+        >
+          <svg viewBox="0 0 20 20" className="h-full w-full drop-shadow-[0_2px_2px_rgba(0,0,0,0.25)]">
+            <path d="M2 10 C 5 3.5, 15 3.5, 18 10 C 15 16.5, 5 16.5, 2 10 Z" fill={l.color.fill} stroke={l.color.vein} strokeWidth="0.8" />
+            <path d="M3.5 10 H 17 M10 10 C 9 7.5, 9 5.5, 10 4 M10 10 C 11 12.5, 11 14.5, 10 16" stroke={l.color.vein} strokeWidth="0.9" strokeLinecap="round" fill="none" opacity="0.75" />
+          </svg>
+        </span>
+      ))}
+    </div>
+  )
+}
+
+/** Soft glowing fireflies wandering over the scene. */
+export function Fireflies({ count = 10, className }: { count?: number; className?: string }) {
+  const mounted = useMounted()
+  const flies = React.useMemo(
+    () =>
+      Array.from({ length: count }).map((_, i) => ({
+        id: i,
+        left: 6 + Math.random() * 88,
+        top: 22 + Math.random() * 68,
+        size: 5 + Math.random() * 6,
+        dur: 9 + Math.random() * 9,
+        delay: -Math.random() * 12,
+        dx: (Math.random() * 2 - 1) * 70,
+        dy: -20 - Math.random() * 60,
+        glow: 2.4 + Math.random() * 3.2,
+      })),
+    [count],
+  )
+  if (!mounted) return null
+  return (
+    <div aria-hidden className={cn('ww-particle pointer-events-none absolute inset-0 overflow-hidden', className)}>
+      {flies.map((f) => (
+        <span
+          key={f.id}
+          className="absolute block rounded-full will-change-transform"
+          style={{
+            left: `${f.left}%`,
+            top: `${f.top}%`,
+            width: f.size,
+            height: f.size,
+            background: 'radial-gradient(circle, #fff7c8 0%, #ffe98a 45%, rgba(255, 214, 110, 0) 75%)',
+            boxShadow: `0 0 ${f.glow * 3}px ${f.glow}px rgba(255, 236, 150, 0.55)`,
+            ['--dx' as string]: `${f.dx}px`,
+            ['--dy' as string]: `${f.dy}px`,
+            animation: `ww-firefly-drift ${f.dur}s ease-in-out ${f.delay}s infinite alternate, ww-firefly-glow ${2.2 + (f.id % 4) * 0.7}s ease-in-out ${f.id * 0.35}s infinite`,
+          }}
+        />
+      ))}
+    </div>
+  )
+}
+
 export function FloatingPetals({ count = 8 }: { count?: number }) {
+  const mounted = useMounted()
   const petals = React.useMemo(
     () =>
       Array.from({ length: count }).map((_, i) => ({
         id: i,
         left: Math.random() * 100,
+        top: 8 + Math.random() * 80,
         delay: Math.random() * 10,
         dur: 9 + Math.random() * 10,
         size: 10 + Math.random() * 12,
@@ -504,8 +628,9 @@ export function FloatingPetals({ count = 8 }: { count?: number }) {
       })),
     [count],
   )
+  if (!mounted) return null
   return (
-    <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
+    <div aria-hidden className="ww-particle pointer-events-none absolute inset-0 overflow-hidden">
       {petals.map((p) => (
         <img
           key={p.id}
@@ -515,7 +640,7 @@ export function FloatingPetals({ count = 8 }: { count?: number }) {
           className="absolute opacity-60"
           style={{
             left: `${p.left}%`,
-            top: `${8 + Math.random() * 80}%`,
+            top: `${p.top}%`,
             width: p.size,
             animation: `ww-float-y ${p.dur}s ease-in-out ${p.delay}s infinite`,
             transform: p.reverse ? 'scaleX(-1)' : undefined,
@@ -527,6 +652,7 @@ export function FloatingPetals({ count = 8 }: { count?: number }) {
 }
 
 export function Twinkles({ count = 14 }: { count?: number }) {
+  const mounted = useMounted()
   const stars = React.useMemo(
     () =>
       Array.from({ length: count }).map((_, i) => ({
@@ -538,8 +664,9 @@ export function Twinkles({ count = 14 }: { count?: number }) {
       })),
     [count],
   )
+  if (!mounted) return null
   return (
-    <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
+    <div aria-hidden className="ww-particle pointer-events-none absolute inset-0 overflow-hidden">
       {stars.map((s) => (
         <img
           key={s.id}

@@ -3,17 +3,18 @@
 import * as React from 'react'
 import { cn } from '@/lib/utils'
 import { A, TILE_IMG } from '@/lib/game/assets'
-import { CHAPTERS, TILE_META, stageTitle } from '@/lib/game/levels'
+import { TILE_META, stageTitle, chapterOf } from '@/lib/game/levels'
 import {
   applyClear,
   applyGravity,
   cloneGrid,
+  comboLabel,
+  comboPlan,
   createGrid,
   expandSpecials,
   findAllMoves,
   findShapes,
   hasAnyMove,
-  isSpecialActivation,
   key,
   planClear,
   shuffleGrid,
@@ -56,6 +57,8 @@ interface Floater {
 interface ComboInfo {
   id: number
   n: number
+  /** when set, the banner shows this special-weave name instead of the cascade multiplier */
+  text?: string
 }
 
 let floaterSeq = 1
@@ -125,6 +128,27 @@ export function PlayScreen({
   const [goalFlash, setGoalFlash] = React.useState<{ id: number } | null>(null)
   const [toast, setToast] = React.useState<string | null>(null)
 
+  /* ------- board shake for big weaves ------- */
+  const [shakeId, setShakeId] = React.useState(0)
+  const shakeTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null)
+  const triggerShake = React.useCallback(() => {
+    const id = Date.now()
+    setShakeId(id)
+    if (shakeTimer.current) clearTimeout(shakeTimer.current)
+    shakeTimer.current = setTimeout(() => {
+      shakeTimer.current = null
+      setShakeId((cur) => (cur === id ? 0 : cur))
+    }, 460)
+  }, [])
+  React.useEffect(() => {
+    return () => {
+      if (shakeTimer.current) clearTimeout(shakeTimer.current)
+    }
+  }, [])
+
+  /* ------- low-moves heartbeat (3 / 2 / 1) ------- */
+  const urgentRef = React.useRef<number | null>(null)
+
   const [status, setStatus] = React.useState<'playing' | 'won' | 'lost'>('playing')
   const statusRef = React.useRef<'playing' | 'won' | 'lost'>('playing')
   const [result, setResult] = React.useState<LevelResult | null>(null)
@@ -182,7 +206,8 @@ export function PlayScreen({
   React.useEffect(() => {
     initAudio()
     discover('entity:lantern')
-    if (level.chapter > 0) discover(`lore:${level.chapter}`)
+    // lore follows the 12 core themes so echo chapters still unlock them
+    if (level.chapter > 0) discover(`lore:${(((level.chapter - 1) % 12) + 1)}`)
     clearSpawnedNextFrame()
     const t = setTimeout(() => lock(false), 480 + level.cols * 26)
     return () => clearTimeout(t)
@@ -204,6 +229,7 @@ export function PlayScreen({
     setArmed(null)
     setHint(null)
     setCombo(null)
+    urgentRef.current = null
     setFloaters([])
     setResult(null)
     setRewards(null)
@@ -227,9 +253,9 @@ export function PlayScreen({
     setTimeout(() => setFloaters((f) => f.filter((x) => x.id !== id)), 1000)
   }, [])
 
-  const showCombo = React.useCallback((n: number) => {
+  const showCombo = React.useCallback((n: number, text?: string) => {
     const id = comboSeq++
-    setCombo({ id, n })
+    setCombo({ id, n, text })
     setTimeout(() => setCombo((cur) => (cur?.id === id ? null : cur)), 1400)
   }, [])
 
@@ -268,6 +294,9 @@ export function PlayScreen({
         return { r, c }
       })
       if (cellsArr.length === 0 && plan.promotions.size === 0) return
+
+      // big weaves rattle the frame
+      if (cellsArr.length >= 10) triggerShake()
 
       const mult = cascade + 1
       const gained = cellsArr.length * 20 * mult + plan.promotions.size * 60
@@ -354,7 +383,7 @@ export function PlayScreen({
         }
       }
     },
-    [addFloater, level, setGridBoth, showCombo, vibrate],
+    [addFloater, level, setGridBoth, showCombo, triggerShake, vibrate],
   )
 
   const cascadeLoop = React.useCallback(
@@ -445,9 +474,10 @@ export function PlayScreen({
 
       const g1 = gridRef.current
       const prismInvolved = ta.special === 'prism' || tb.special === 'prism'
-      const specialVsSpecial = !prismInvolved && ta.special !== 'none' && tb.special !== 'none'
+      // the full special+special weave table — non-null only when BOTH tiles are special
+      const combo = comboPlan(g1, a, b)
       // g1 already contains the swapped tiles, so any shape present now was created by the swap
-      const valid = prismInvolved || specialVsSpecial || findShapes(g1).length > 0
+      const valid = prismInvolved || combo !== null || findShapes(g1).length > 0
 
       if (!valid) {
         setGridBoth(g0)
@@ -460,23 +490,47 @@ export function PlayScreen({
       if (!opts?.free) {
         movesRef.current -= 1
         setMovesLeft(movesRef.current)
+        // heartbeat as the loom runs out of moves (3 / 2 / 1)
+        if (movesRef.current >= 1 && movesRef.current <= 3 && urgentRef.current !== movesRef.current) {
+          urgentRef.current = movesRef.current
+          sfx.urgent()
+        }
       }
       vibrate(10)
 
-      if (prismInvolved) {
-        await activatePrism(a, b)
-      } else if (specialVsSpecial) {
-        const seed = new Set([key(a.r, a.c), key(b.r, b.c)])
-        sfx.bomb()
-        await blast({ cells: expandSpecials(g1, seed), promotions: new Map() }, 0)
+      if (combo) {
+        // special + special weave: tiered fanfare, banner, bonus, then the blast
+        const tier = combo.kind === 'blackhole' ? 3 : combo.kind === 'lineStorm' || combo.kind === 'bombStorm' ? 2 : 1
+        sfx.combo(tier)
+        vibrate(24)
+        showCombo(1, comboLabel(combo.kind))
+        scoreRef.current += combo.bonus
+        setScore(scoreRef.current)
+        addFloater((a.r + b.r) / 2, (a.c + b.c) / 2, `+${combo.bonus}`)
+        triggerShake()
+        await blast({ cells: expandSpecials(g1, combo.cells), promotions: new Map() }, 0)
         await cascadeLoop()
+      } else if (prismInvolved) {
+        await activatePrism(a, b)
       } else {
         await cascadeLoop([a, b])
       }
       await afterMove()
       lock(false)
     },
-    [activatePrism, afterMove, blast, cascadeLoop, lock, setGridBoth, setSelectedBoth, vibrate],
+    [
+      activatePrism,
+      addFloater,
+      afterMove,
+      blast,
+      cascadeLoop,
+      lock,
+      setGridBoth,
+      setSelectedBoth,
+      showCombo,
+      triggerShake,
+      vibrate,
+    ],
   )
 
   /* ------- boosters ------- */
@@ -502,7 +556,12 @@ export function PlayScreen({
         return
       }
       sfx.booster()
-      setArmed(armedRef.current === 'null' ? null : 'null')
+      if (armedRef.current === 'null') {
+        setArmed(null)
+      } else {
+        setArmed('null')
+        showToast('Tap any charm to unweave it…')
+      }
       setSelectedBoth(null)
     },
     [attemptSwap, inventory, level.types, setArmed, setGridBoth, setSelectedBoth, showToast, spendBooster],
@@ -662,8 +721,35 @@ export function PlayScreen({
 
   /* ------- render ------- */
   const obj = level.objective
-  const bgKey = level.chapter > 0 ? CHAPTERS[level.chapter - 1].bg : 'bg-altar'
+  const bgKey = level.chapter > 0 ? chapterOf(level.id).bg : 'bg-altar'
   const stageLabel = isDaily ? 'DAILY PAGE' : `STAGE ${stageTitle(level)}`
+
+  /* static cell sockets — rebuilt only when the board size changes, not on every state change */
+  const sockets = React.useMemo(
+    () =>
+      size.w > 0
+        ? Array.from({ length: level.rows * level.cols }).map((_, i) => {
+            const r = Math.floor(i / level.cols)
+            const c = i % level.cols
+            return (
+              <div
+                key={i}
+                aria-hidden
+                className="absolute"
+                style={{
+                  left: `${(c * 100) / level.cols}%`,
+                  top: `${(r * 100) / level.rows}%`,
+                  width: `${100 / level.cols}%`,
+                  height: `${100 / level.rows}%`,
+                }}
+              >
+                <div className={cn('absolute inset-[5%] board-cell', (r + c) % 2 === 1 && 'board-cell-alt')} />
+              </div>
+            )
+          })
+        : null,
+    [level.rows, level.cols, size.w],
+  )
 
   return (
     <div className="relative flex-1 flex flex-col overflow-hidden ww-tap-none">
@@ -773,7 +859,7 @@ export function PlayScreen({
       {/* board */}
       <main ref={wrapRef} className="relative z-10 flex-1 min-h-0 flex items-center justify-center px-3 py-2">
         <div
-          className="board-frame"
+          className={cn('board-frame', shakeId > 0 && 'anim-board-shake')}
           style={{ width: size.w + 12, height: size.h + 12, padding: 5, opacity: size.w > 0 ? 1 : 0 }}
         >
           <div
@@ -793,27 +879,8 @@ export function PlayScreen({
             onPointerCancel={() => (dragRef.current = null)}
             onContextMenu={(e) => e.preventDefault()}
           >
-            {/* cell sockets */}
-            {size.w > 0 &&
-              Array.from({ length: level.rows * level.cols }).map((_, i) => {
-                const r = Math.floor(i / level.cols)
-                const c = i % level.cols
-                return (
-                  <div
-                    key={i}
-                    aria-hidden
-                    className="absolute"
-                    style={{
-                      left: `${(c * 100) / level.cols}%`,
-                      top: `${(r * 100) / level.rows}%`,
-                      width: `${100 / level.cols}%`,
-                      height: `${100 / level.rows}%`,
-                    }}
-                  >
-                    <div className={cn('absolute inset-[5%] board-cell', (r + c) % 2 === 1 && 'board-cell-alt')} />
-                  </div>
-                )
-              })}
+            {/* cell sockets (memoized) */}
+            {sockets}
 
             {grid.flatMap((row, r) =>
               row.map((t, c) => {
@@ -849,8 +916,8 @@ export function PlayScreen({
             {/* combo banner */}
             {combo && (
               <div key={combo.id} className="absolute inset-0 z-40 flex items-center justify-center pointer-events-none">
-                <span className="anim-combo font-display italic font-black text-3xl text-[#ffd76e] px-6 py-1.5 rounded-full border-2 border-[#f4c05a] bg-gradient-to-b from-[#2c4a6e]/95 to-[#16263e]/95 drop-shadow-[0_4px_10px_rgba(0,0,0,0.55)]">
-                  Combo ×{combo.n}!
+                <span className="anim-combo combo-banner font-display italic font-black text-3xl px-6 py-1.5 rounded-full">
+                  {combo.text ?? `Combo ×${combo.n}!`}
                 </span>
               </div>
             )}
@@ -872,7 +939,7 @@ export function PlayScreen({
         </div>
       </main>
 
-      {/* boosters + hint */}
+      {/* boosters */}
       <footer className="relative z-20 px-4 pb-2 pt-0.5 flex items-center justify-between gap-3">
         <BoosterButton
           kind="lens"
@@ -881,9 +948,7 @@ export function PlayScreen({
           disabled={busy || status !== 'playing'}
           onClick={() => armBooster('lens')}
         />
-        <p className="flex-1 min-w-0 text-center text-[10px] leading-tight text-[#f4e9c8]/85 ww-text-outline font-medium">
-          {armedBooster === 'null' ? 'Tap any charm to unweave it…' : level.hint}
-        </p>
+        <div className="flex-1 min-w-0" aria-hidden />
         <BoosterButton
           kind="null"
           count={inventory.null}
@@ -980,9 +1045,9 @@ function BoosterButton({
   )
 }
 
-/* ---------------- tile ---------------- */
+/* ---------------- tile (memoized — re-renders only when its tile/position/flags change) ---------------- */
 
-function TileView({
+const TileView = React.memo(function TileView({
   tile,
   r,
   c,
@@ -1049,4 +1114,4 @@ function TileView({
       </div>
     </div>
   )
-}
+})

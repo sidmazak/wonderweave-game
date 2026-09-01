@@ -2,17 +2,18 @@
 
 import * as React from 'react'
 import { A } from '@/lib/game/assets'
-import { CHAPTERS, TOTAL_CHAPTERS, chapterLevelIds } from '@/lib/game/levels'
+import { LEVELS_PER_CHAPTER, chapterDef, chapterLevelIds } from '@/lib/game/levels'
 import type { ProgressMap } from '@/hooks/use-progress'
 import { IconButton, ProgressBar, RibbonBanner } from './ui'
 import { cn } from '@/lib/utils'
 
-const STARS_PER_CHAPTER = 36
+const STARS_PER_CHAPTER = LEVELS_PER_CHAPTER * 3
 
 /**
- * Chapter — one island's 12 stage nodes (e.g. "CHAPTER VII — The Celestial Archive").
+ * Chapter — one island's stage nodes (e.g. "CHAPTER VII — The Celestial Archive").
+ * Works for ANY chapter id ≥ 1: the world is endless and themes echo forever.
  * progress: Record<levelId, {stars, bestScore}> (may be empty on first render).
- * highestUnlocked: first level id the player may play (1..144).
+ * highestUnlocked: first level id the player may play.
  */
 export function ChapterScreen({
   chapterId,
@@ -27,7 +28,7 @@ export function ChapterScreen({
   onBack: () => void
   onPlayLevel: (levelId: number) => void
 }) {
-  const ch = CHAPTERS[Math.min(TOTAL_CHAPTERS, Math.max(1, chapterId)) - 1]
+  const ch = chapterDef(Math.max(1, chapterId))
   const ids = chapterLevelIds(ch.id)
   const chapterStars = ids.reduce((sum, id) => sum + (progress[id]?.stars ?? 0), 0)
 

@@ -1,4 +1,4 @@
-import { CHAPTERS, getLevel, TOTAL_LEVELS } from './levels'
+import { CHAPTERS, getLevel } from './levels'
 import type { LevelDef } from './types'
 
 /** Local date key YYYY-MM-DD (the player's own timezone). */
@@ -74,5 +74,3 @@ export function dailyRewardFor(streak: number): { lumens: number; lens: number; 
     null: 1,
   }
 }
-
-export const DAILY_TOTAL_STAGES = TOTAL_LEVELS // informational

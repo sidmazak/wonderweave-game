@@ -318,6 +318,126 @@ export function isSpecialActivation(grid: Grid, a: Cell, b: Cell): boolean {
   return ga.special !== 'none' && gb.special !== 'none'
 }
 
+/* ---------------- special + special combo matrix ---------------- */
+
+export type ComboKind =
+  | 'cross' //      striped + striped   → full row + full column of light
+  | 'megaCross' //  striped + burst     → three rows + three columns
+  | 'bigBomb' //    burst + burst       → two overlapping 5×5 rings
+  | 'lineStorm' //  prism + striped     → every charm of a kind weaves a line
+  | 'bombStorm' //  prism + burst       → every charm of a kind becomes a burst
+  | 'blackhole' //  prism + prism       → the whole loom unravels
+
+export interface ComboPlan {
+  cells: Set<string>
+  kind: ComboKind
+  /** flat bonus points for pulling off the weave */
+  bonus: number
+}
+
+const COMBO_LABEL: Record<ComboKind, string> = {
+  cross: 'Cross of Light!',
+  megaCross: 'Grand Weave!',
+  bigBomb: 'Twin Bloom!',
+  lineStorm: 'Line Storm!',
+  bombStorm: 'Burst Bloom!',
+  blackhole: 'The Loom Unravels!',
+}
+
+export function comboLabel(kind: ComboKind): string {
+  return COMBO_LABEL[kind]
+}
+
+export const COMBO_BONUS: Record<ComboKind, number> = {
+  cross: 400,
+  megaCross: 700,
+  bigBomb: 600,
+  lineStorm: 900,
+  bombStorm: 900,
+  blackhole: 1500,
+}
+
+function fullRow(grid: Grid, r: number, out: Set<string>): void {
+  for (let c = 0; c < grid[r].length; c++) out.add(key(r, c))
+}
+function fullCol(grid: Grid, c: number, out: Set<string>): void {
+  for (let r = 0; r < grid.length; r++) out.add(key(r, c))
+}
+function ring(grid: Grid, r: number, c: number, radius: number, out: Set<string>): void {
+  for (let dr = -radius; dr <= radius; dr++) {
+    for (let dc = -radius; dc <= radius; dc++) {
+      const rr = r + dr
+      const cc = c + dc
+      if (rr >= 0 && rr < grid.length && cc >= 0 && cc < grid[rr].length) out.add(key(rr, cc))
+    }
+  }
+}
+
+/**
+ * The complete special-vs-special weave table. Returns null when the pair is
+ * not a combo (e.g. prism + plain charm is a plain prism activation).
+ */
+export function comboPlan(grid: Grid, a: Cell, b: Cell): ComboPlan | null {
+  const ta = grid[a.r]?.[a.c]
+  const tb = grid[b.r]?.[b.c]
+  if (!ta || !tb) return null
+  const sa = ta.special
+  const sb = tb.special
+  if (sa === 'none' || sb === 'none') return null
+
+  const isLine = (s: Special) => s === 'lineH' || s === 'lineV'
+  const cells = new Set<string>()
+  let kind: ComboKind
+
+  if (sa === 'prism' && sb === 'prism') {
+    kind = 'blackhole'
+    for (let r = 0; r < grid.length; r++) fullRow(grid, r, cells)
+  } else if (sa === 'prism' || sb === 'prism') {
+    // partner is the non-prism special; storm every charm of ITS colour
+    const partner = sa === 'prism' ? tb : ta
+    const pr = sa === 'prism' ? b.r : a.r
+    const pc = sa === 'prism' ? b.c : a.c
+    if (isLine(partner.special)) {
+      kind = 'lineStorm'
+      for (let r = 0; r < grid.length; r++) {
+        for (let c = 0; c < grid[r].length; c++) {
+          if (grid[r][c]?.type === partner.type) {
+            fullRow(grid, r, cells)
+            fullCol(grid, c, cells)
+          }
+        }
+      }
+      cells.add(key(pr, pc))
+    } else {
+      kind = 'bombStorm'
+      for (let r = 0; r < grid.length; r++) {
+        for (let c = 0; c < grid[r].length; c++) {
+          if (grid[r][c]?.type === partner.type) ring(grid, r, c, 1, cells)
+        }
+      }
+      cells.add(key(pr, pc))
+    }
+  } else if (isLine(sa) && isLine(sb)) {
+    kind = 'cross'
+    fullRow(grid, a.r, cells)
+    fullCol(grid, a.c, cells)
+    cells.add(key(b.r, b.c))
+  } else if ((isLine(sa) && sb === 'bomb') || (sa === 'bomb' && isLine(sb))) {
+    kind = 'megaCross'
+    const lr = sa === 'bomb' ? b.r : a.r // the striped charm's line
+    const bc = sa === 'bomb' ? a.c : b.c // the burst charm's column
+    for (let dr = -1; dr <= 1; dr++) if (lr + dr >= 0 && lr + dr < grid.length) fullRow(grid, lr + dr, cells)
+    for (let dc = -1; dc <= 1; dc++) if (bc + dc >= 0 && bc + dc < grid[0].length) fullCol(grid, bc + dc, cells)
+  } else {
+    // burst + burst
+    kind = 'bigBomb'
+    ring(grid, a.r, a.c, 2, cells)
+    ring(grid, b.r, b.c, 2, cells)
+  }
+
+  return { cells, kind, bonus: COMBO_BONUS[kind] }
+}
+
 export function findAllMoves(grid: Grid): [Cell, Cell][] {
   const rows = grid.length
   const cols = grid[0]?.length ?? 0

@@ -2,13 +2,14 @@
 
 import * as React from 'react'
 import { A } from '@/lib/game/assets'
-import { TOTAL_LEVELS, getLevel } from '@/lib/game/levels'
+import { getLevel } from '@/lib/game/levels'
 import { dateKey, getDailyLevel } from '@/lib/game/daily'
 import { discover } from '@/lib/game/codex'
+import { setMusicTheme } from '@/lib/game/sound'
 import type { LevelResult } from '@/lib/game/types'
 import { useProgress } from '@/hooks/use-progress'
 import { SettingsProvider, useAudioGate, useSettings } from './settings'
-import { BottomNav, type NavTab } from './ui'
+import { BottomNav, FallingLeaves, type NavTab } from './ui'
 import { HomeScreen } from './HomeScreen'
 import { AtlasScreen } from './AtlasScreen'
 import { ChapterScreen } from './ChapterScreen'
@@ -17,7 +18,7 @@ import { DailyScreen } from './DailyScreen'
 import { AltarScreen, type RitualOutcome } from './AltarScreen'
 import { InstrumentsScreen } from './InstrumentsScreen'
 import { PlayScreen, type RewardSummary } from './PlayScreen'
-import { HowToModal, LeaderboardModal } from './modals'
+import { HowToModal } from './modals'
 
 type Screen = 'splash' | 'meta' | 'play'
 
@@ -42,7 +43,19 @@ function GameRoot() {
   const [playAttempt, setPlayAttempt] = React.useState(0)
   const [showInstruments, setShowInstruments] = React.useState(false)
   const [showHowTo, setShowHowTo] = React.useState(false)
-  const [showLeaderboard, setShowLeaderboard] = React.useState(false)
+
+  // music theming per view
+  React.useEffect(() => {
+    if (screen === 'play') {
+      setMusicTheme('play')
+      return
+    }
+    if (screen === 'splash') {
+      setMusicTheme('home')
+      return
+    }
+    setMusicTheme(metaView === 'map' ? 'map' : metaView === 'codex' || metaView === 'relics' ? 'night' : 'home')
+  }, [screen, metaView])
 
   // splash auto-advance
   React.useEffect(() => {
@@ -97,13 +110,11 @@ function GameRoot() {
       return (
         <HomeScreen
           totalStars={prog.totals.stars}
-          totalStarsMax={TOTAL_LEVELS * 3}
           lumens={prog.lumens}
           dailyDone={dailyDone}
           onPlay={continueNext}
           onInstruments={() => setShowInstruments(true)}
           onHowTo={() => setShowHowTo(true)}
-          onLeaderboard={() => setShowLeaderboard(true)}
         />
       )
     }
@@ -123,7 +134,6 @@ function GameRoot() {
         <AtlasScreen
           progress={prog.progress}
           totalStars={prog.totals.stars}
-          totalStarsMax={TOTAL_LEVELS * 3}
           highestUnlocked={prog.highestUnlocked}
           onSelectChapter={(ch) => {
             setChapterId(ch)
@@ -155,6 +165,7 @@ function GameRoot() {
           >
             <img src={A('splash-loading')} alt="" className="absolute inset-0 w-full h-full object-cover" draggable={false} />
             <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-[#0e1c14]/70" />
+            <FallingLeaves count={5} />
             <img
               src={A('plaque-loading')}
               alt="Loading…"
@@ -196,7 +207,7 @@ function GameRoot() {
             onPlayLevel={startLevel}
             onWin={handleWin}
             onOpenInstruments={() => setShowInstruments(true)}
-            hasNextStage={levelId > 0 && levelId < TOTAL_LEVELS}
+            hasNextStage={levelId > 0}
           />
         )}
 
@@ -213,10 +224,6 @@ function GameRoot() {
         )}
 
         {showHowTo && <HowToModal onClose={() => setShowHowTo(false)} />}
-
-        {showLeaderboard && (
-          <LeaderboardModal onClose={() => setShowLeaderboard(false)} myId={prog.player.id} />
-        )}
       </div>
     </div>
   )
