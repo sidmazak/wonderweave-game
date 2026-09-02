@@ -25,12 +25,14 @@ export const ALL_ASSETS: string[] = [
   'deco-tree', 'deco-flowers', 'deco-arch', 'deco-butterfly', 'deco-moon', 'deco-mushrooms', 'deco-waterfall',
   'deco-sign', 'deco-balloon', 'banner-combo', 'banner-objective', 'banner-wood', 'banner-parch', 'banner-floral',
   'bar-green', 'bar-blue', 'bar-stars', 'frame-square', 'dialog-confirm',
+  // generated hero button
+  'play-btn',
 ]
 
 /** Assets needed before the home screen paints (splash shows progress for these first). */
 export const CRITICAL_ASSETS: string[] = [
   'bg-castle', 'logo', 'bunny-lantern', 'star-sparkle', 'icon-gear', 'deco-platform',
-  'icon-back', 'icon-close', 'tile-leaf', 'tile-drop', 'fx-sparkle', 'banner-wood',
+  'icon-back', 'icon-close', 'tile-leaf', 'tile-drop', 'fx-sparkle', 'banner-wood', 'play-btn',
 ]
 
 export const TILE_IMG: Record<TileType, string> = {

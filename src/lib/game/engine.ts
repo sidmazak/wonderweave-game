@@ -265,7 +265,11 @@ export interface GravityResult {
   spawnedIds: number[]
 }
 
-/** Drop tiles into holes; spawn new tiles above. Mutates grid. */
+/** Drop tiles into holes; spawn new tiles just above the frame as a connected
+    column (each spawned tile records its column depth in `spawnDrop` so the
+    view can start it exactly `spawnDrop` cells above its landing spot —
+    no more flying in from a full board above, no per-column wave gaps).
+    Mutates grid. */
 export function applyGravity(grid: Grid, types: TileType[]): GravityResult {
   const rows = grid.length
   const cols = grid[0].length
@@ -284,10 +288,12 @@ export function applyGravity(grid: Grid, types: TileType[]): GravityResult {
         write--
       }
     }
-    // spawn for rows 0..write
+    // spawn for rows 0..write — all tiles in this column share the same depth
+    const depth = write + 1
     for (let r = write; r >= 0; r--) {
       const t = newTile(randOf(types))
       t.spawned = true
+      t.spawnDrop = depth
       spawnedIds.push(t.id)
       grid[r][c] = t
       moved = true

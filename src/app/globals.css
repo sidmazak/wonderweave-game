@@ -227,14 +227,23 @@
 @keyframes ww-ken { 0% { transform: scale(1) translateY(0); } 100% { transform: scale(1.12) translateY(-1.5%); } }
 .anim-ken { animation: ww-ken 26s ease-in-out infinite alternate; }
 
-@keyframes ww-pulse-tile { 0%, 100% { transform: scale(1); filter: brightness(1); } 50% { transform: scale(1.1); filter: brightness(1.25); } }
-.anim-tile-select { animation: ww-pulse-tile 0.9s ease-in-out infinite; }
+@keyframes ww-pulse-tile { 0%, 100% { transform: scale(1); filter: brightness(1); } 50% { transform: scale(1.07); filter: brightness(1.18); } }
+.anim-tile-select { animation: ww-pulse-tile 0.8s ease-in-out infinite; }
 
-@keyframes ww-wiggle { 0%, 100% { transform: rotate(0deg); } 25% { transform: rotate(-7deg) scale(1.05); } 75% { transform: rotate(7deg) scale(1.05); } }
-.anim-wiggle { animation: ww-wiggle 0.55s ease-in-out infinite; }
+@keyframes ww-wiggle { 0%, 100% { transform: rotate(0deg); } 25% { transform: rotate(-5deg) scale(1.04); } 75% { transform: rotate(5deg) scale(1.04); } }
+.anim-wiggle { animation: ww-wiggle 0.6s ease-in-out infinite; }
 
-@keyframes ww-pop { 0% { transform: scale(1); opacity: 1; } 55% { transform: scale(1.28); opacity: 0.95; } 100% { transform: scale(0); opacity: 0; } }
-.tile-clearing { animation: ww-pop 0.24s ease-in forwards; }
+@keyframes ww-pop { 0% { transform: scale(1); opacity: 1; } 55% { transform: scale(1.22); opacity: 0.95; } 100% { transform: scale(0); opacity: 0; } }
+.tile-clearing { animation: ww-pop 0.2s ease-in forwards; }
+
+/** soft landing squash — armed when a falling tile is released; the 0.38s delay
+    lines the squash up with the end of the 380ms refill fall */
+@keyframes ww-tile-land {
+  0% { transform: scale(1.14, 0.84); }
+  55% { transform: scale(0.95, 1.06); }
+  100% { transform: scale(1, 1); }
+}
+.anim-tile-land { animation: ww-tile-land 0.22s ease-out 0.38s; }
 
 @keyframes ww-rise { 0% { transform: translateY(0) scale(0.7); opacity: 0; } 18% { transform: translateY(-12%) scale(1.05); opacity: 1; } 100% { transform: translateY(-160%) scale(1); opacity: 0; } }
 .anim-rise { animation: ww-rise 0.95s ease-out forwards; }
@@ -495,6 +504,22 @@ input.ww-range:focus-visible { outline: 3px solid #ffd76e; }
   box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.5);
 }
 
+/* ---------- lore cards (codex · lore tab) ---------- */
+.lore-card { padding-top: 0.7rem; padding-bottom: 0.7rem; }
+.lore-card-locked {
+  background: linear-gradient(165deg, #ead9b4 0%, #d9c49c 60%, #cdb684 100%);
+  border-style: dashed;
+  border-color: rgba(122, 94, 56, 0.75);
+  box-shadow: inset 0 0 0 2px rgba(255, 252, 240, 0.45), 0 3px 8px rgba(0, 0, 0, 0.22);
+}
+.lore-medal {
+  border-radius: 9999px;
+  background: linear-gradient(180deg, #f3e7c8, #dcc79c);
+  color: #8a7454;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 240, 0.75), 0 2px 5px rgba(60, 40, 18, 0.28);
+}
+.lore-medal-locked { opacity: 0.9; }
+
 /* ---------- board cells ---------- */
 .board-cell {
   background: linear-gradient(180deg, rgba(20, 34, 22, 0.5), rgba(10, 20, 12, 0.65));
@@ -595,7 +620,11 @@ input.ww-range:focus-visible { outline: 3px solid #ffd76e; }
 .ww-reduced .ww-particle * {
   animation: none !important;
 }
+/* reduced motion: hide ambient particles entirely rather than freezing them
+   mid-air (frozen leaves were hanging invisibly above the frame) */
+.ww-reduced .ww-particle { display: none !important; }
 .ww-reduced .tile-anim-fall { transition-duration: 200ms !important; }
+.ww-reduced .anim-tile-land { animation: none !important; }
 
 .ww-hc .board-cell {
   box-shadow: inset 0 0 0 2px rgba(190, 220, 190, 0.4), inset 0 2px 5px rgba(0, 0, 0, 0.55);
@@ -775,34 +804,12 @@ body.ww-modal-open .ww-particle { animation-play-state: paused; }
 }
 .anim-ready-pulse { animation: ww-ready-pulse 1.5s ease-in-out infinite; }
 
-/* hero PLAY button — storybook plaque with gold trim */
-.play-hero {
-  position: relative;
-  background:
-    radial-gradient(ellipse at 50% -20%, rgba(255, 255, 255, 0.35), rgba(255, 255, 255, 0) 55%),
-    linear-gradient(180deg, #b8e08a 0%, #8fc95c 42%, #63a838 76%, #4c8a28 100%);
-  border: 2px solid #33601a;
-  outline: 3px solid #e8c174;
-  outline-offset: 3px;
-  border-radius: 1.4rem;
-  box-shadow:
-    inset 0 3px 0 rgba(255, 255, 255, 0.55),
-    inset 0 -5px 10px rgba(40, 80, 20, 0.5),
-    0 6px 0 #3c6e1e,
-    0 12px 22px rgba(0, 0, 0, 0.45);
-  color: #1e3d0e;
-  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.5);
-  transition: transform 0.14s ease, filter 0.14s ease, box-shadow 0.14s ease;
+/* the generated carved-plaque hero button (art carries the frame; CSS stays thin) */
+.play-plaque {
+  transition: transform 0.16s ease, filter 0.2s ease;
 }
-.play-hero:hover { filter: brightness(1.06); }
-.play-hero:active {
-  transform: translateY(4px);
-  box-shadow:
-    inset 0 3px 0 rgba(255, 255, 255, 0.45),
-    inset 0 -3px 8px rgba(40, 80, 20, 0.45),
-    0 2px 0 #3c6e1e,
-    0 6px 12px rgba(0, 0, 0, 0.35);
-}
+.play-plaque:hover { filter: brightness(1.05) drop-shadow(0 12px 20px rgba(10, 20, 10, 0.6)); }
+.play-plaque:active { transform: scale(0.96); }
 
 /* full-bleed app overscroll lock (mobile rubber-band / pull-to-refresh) */
 .ww-app-root {
@@ -811,6 +818,10 @@ body.ww-modal-open .ww-particle { animation-play-state: paused; }
   user-select: none;
 }
 .ww-app-root img { -webkit-user-drag: none; }
+/* legacy mobile browsers without dvh — fall back to the classic viewport height */
+@supports not (height: 100dvh) {
+  .ww-app-root { height: 100vh; }
+}
 
 /* staggered reveal for card lists (codex / atlas) */
 @keyframes ww-rise-in {
@@ -820,3 +831,5 @@ body.ww-modal-open .ww-particle { animation-play-state: paused; }
 .anim-rise-in { animation: ww-rise-in 0.42s cubic-bezier(0.25, 0.8, 0.3, 1) both; }
 
 /* v3.1 recompile nudge */
+
+/* recompile nudge v33 */

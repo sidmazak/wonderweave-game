@@ -60,7 +60,7 @@ export function InstrumentsScreen({
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_40%,rgba(5,9,5,0.75)_100%)]" />
       </div>
 
-      <IconButton img={A('icon-back')} label="Back" onClick={onBack} className="absolute top-3 left-3 z-20" />
+      <IconButton img={A('icon-back')} label="Back" onClick={onBack} sound="back" className="absolute top-3 left-3 z-20" />
 
       <div className="relative z-10 flex h-full min-h-0 flex-col px-3 pt-3 pb-3">
         <header className="pt-1 px-1">

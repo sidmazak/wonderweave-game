@@ -238,3 +238,22 @@ Work Log:
 
 Stage Summary:
 - E2E (agent-browser 430x860 + 1280x800): fresh load caught at "WEAVING THE WORLD… 100%" → auto-glide to home, zero clicks; home has NO tagline, leaves+fireflies clearly visible and moving (2 frames differ); reset flow: DATA row → confirm → localStorage {progress:{},lumens:40,inventory:3/3,daily:null,codex:removed} + DELETE /api/progress 200 in dev.log → done screen → home HUD 0★/40✦ live → survives reload (server can't resurrect) → PLAY starts fresh STAGE 1-1 with Lens 3/Null 3; zero console errors; lint + tsc clean (examples/skills pre-existing only)
+
+---
+Task ID: 7 (v3.3 — sound completeness, swift refill, plaque PLAY, vibrant lore, asset fixes)
+Agent: main (Z.ai Code)
+Task: Sound audit + every-domain SFX; smoother/swift/soft board with gapless fast refill; home leaves+fireflies resolved; generated plaque PLAY asset; vibrant lore page minus flavor text; dvh audit; baked corner-frame asset fix
+
+Work Log:
+- SOUND AUDIT: cascade pop already climbs the pentatonic LADDER (rising pitch per combo) — added a shimmer overtone from cascade 2+; wired previously-dead sounds: uiBack (all 6 back IconButtons via new `sound` prop on IconButton/WoodButton: ui|back|select), sfx.select (Atlas chapter cards, Chapter level nodes, codex detail open), sfx.reward (FolioSealedModal chime at +1350ms after fanfare+stars); verified coverage: swap/invalid/pop/specialCreate/prism/line/bomb/combo(tier fanfare)/shuffle/lens/nullify/urgent/win/lose/ritual/ui everywhere
+- BOARD REWRITE (the real "gaps" bug): refill fall only STARTED after a 544ms sleep (mount-at-start → flag flip → then transition) so holes sat on screen ~1s; now blast()/nullify() applyClear+applyGravity → nextPaint() (double-rAF) releases flags → fall starts instantly; applyGravity stamps spawnDrop=column depth → refills enter as connected columns just above the frame (no more full-board fly-in, no left→right wave from c*22ms stagger); waits 544+400ms → 400ms flat (~2.2x snappier), swap 150ms + pop 180ms kept tight
+- FEEL: new ww-tile-land squash keyframe (armed via inner key-flip, 380ms delay lands exactly with the fall), softer select pulse 1.07, softer wiggle ±5°, softer pop 1.22/0.2s, gentler curves (1.03-1.04 overshoot)
+- HOME PARTICLES ROOT CAUSE: reduced-motion froze leaves at -top-10 (off-screen = invisible); ww-reduced now display:none's particles instead of freezing; counts/visibility already strong (12+5 leaves, 13 fireflies)
+- PLAY BUTTON: generated 1344x768 carved wooden plaque w/ gold trim + corner berry vines (z-ai CLI, storybook watercolor prompt), PIL tight-crop → play-btn.webp (1178x618); hero button uses it as background (aspectRatio 1178/618, 100% 100%), deep-red PLAY ▶ like the reference mock, ring pulse + active squash; .play-hero CSS replaced by thin .play-plaque
+- LORE PAGE: per-chapter colored numeral medallions (12 warm hues w/ gold ring + ribbon stub), solid warm parchment locked cards w/ dashed borders (alpha version was see-through over dark backdrop — fixed after computed-style check + CSS recompile nudge), gold chevron chips, "Twelve chapters of a story the world forgot." REMOVED (lore flavor only; other tabs keep their whisper lines)
+- ASSETS: bg-castle/arch/forest/night/ruins/altar had baked-in black rounded-corner vignettes (the "curve at top right") — PIL cropped 12% per side, artwork now full-bleed; verified corners clean
+- MOBILE: root already h-dvh everywhere; added @supports not (height:100dvh) → 100vh fallback on .ww-app-root
+- E2E (agent-browser 430x860 + 1280x800): home shows plaque PLAY + leaves + fireflies + no corner curve; real drag swap (invalid bounces); Lens → Combo ×2 with +60/+120 floaters, board 100% filled mid-cascade and after (zero gaps); lore tab vibrant/removed text; desktop centered; zero console errors; lint + tsc clean
+
+Stage Summary:
+- Wonderweave v3.3: complete sound web (rising cascade ladder + every screen covered), gapless 400ms column-refill with landing squash, generated-art plaque PLAY, vibrant lore codex, clean full-bleed backgrounds — all browser-verified

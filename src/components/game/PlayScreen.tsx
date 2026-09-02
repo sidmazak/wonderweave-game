@@ -36,6 +36,8 @@ import { CountUp, IconButton, ProgressBar, RibbonBanner } from './ui'
 import { FolioSealedModal, FolioLostModal, PauseModal } from './modals'
 
 const sleep = (ms: number) => new Promise<void>((res) => setTimeout(res, ms))
+/** two paints — guarantees the browser has rendered the current styles before continuing */
+const nextPaint = () => new Promise<void>((res) => requestAnimationFrame(() => requestAnimationFrame(() => res())))
 
 function adjacent(a: Cell, b: Cell): boolean {
   return Math.abs(a.r - b.r) + Math.abs(a.c - b.c) === 1
@@ -211,7 +213,7 @@ export function PlayScreen({
     // lore follows the 12 core themes so echo chapters still unlock them
     if (level.chapter > 0) discover(`lore:${(((level.chapter - 1) % 12) + 1)}`)
     clearSpawnedNextFrame()
-    const t = setTimeout(() => lock(false), 440 + level.cols * 22)
+    const t = setTimeout(() => lock(false), 460)
     return () => clearTimeout(t)
   }, [clearSpawnedNextFrame, lock, level.cols])
 
@@ -240,7 +242,7 @@ export function PlayScreen({
     setPaused(false)
     pausedRef.current = false
     lock(true)
-    setTimeout(() => lock(false), 440 + level.cols * 22)
+    setTimeout(() => lock(false), 460)
   }, [clearSpawnedNextFrame, level, lock, setArmed, setGridBoth, setSelectedBoth])
 
   /* ------- helpers ------- */
@@ -346,25 +348,28 @@ export function PlayScreen({
       setGridBoth(g)
       sfx.pop(cascade)
       vibrate(12)
-      await sleep(200)
+      await sleep(180)
 
-      // clear + gravity
+      // clear + gravity — tiles mount in their above-frame slots, then the very
+      // next paint releases them, so the refill starts instantly (no dead delay)
       applyClear(g, plan)
       const grav = applyGravity(g, level.types)
       setGridBoth(g)
       if (grav.spawnedIds.length > 0) {
-        await sleep(390 + level.cols * 22)
+        await nextPaint()
         const g2 = cloneGrid(gridRef.current)
         let dirty = false
         for (const row of g2) {
           for (const t of row) {
             if (t && t.spawned) {
               delete t.spawned
+              delete t.spawnDrop
               dirty = true
             }
           }
         }
         if (dirty) setGridBoth(g2)
+        await sleep(400)
       } else {
         await sleep(230)
       }
@@ -591,24 +596,29 @@ export function PlayScreen({
       }
       t.clearing = true
       setGridBoth(g)
-      await sleep(200)
+      await sleep(180)
 
       applyClear(g, { cells: new Set([key(cell.r, cell.c)]), promotions: new Map() })
       const grav = applyGravity(g, level.types)
       setGridBoth(g)
-      if (grav.spawnedIds.length > 0) await sleep(390 + level.cols * 22)
-      else await sleep(240)
-      const g2 = cloneGrid(gridRef.current)
-      let dirty = false
-      for (const row of g2) {
-        for (const tl of row) {
-          if (tl && tl.spawned) {
-            delete tl.spawned
-            dirty = true
+      if (grav.spawnedIds.length > 0) {
+        await nextPaint()
+        const g2 = cloneGrid(gridRef.current)
+        let dirty = false
+        for (const row of g2) {
+          for (const tl of row) {
+            if (tl && tl.spawned) {
+              delete tl.spawned
+              delete tl.spawnDrop
+              dirty = true
+            }
           }
         }
+        if (dirty) setGridBoth(g2)
+        await sleep(400)
+      } else {
+        await sleep(230)
       }
-      if (dirty) setGridBoth(g2)
 
       await cascadeLoop()
       await afterMove()
@@ -1079,17 +1089,22 @@ const TileView = React.memo(function TileView({
       style={{
         width: `${100 / cols}%`,
         height: `${100 / rows}%`,
-        transform: `translate(${c * 100}%, ${(spawned ? r - rows : r) * 100}%)`,
+        // refilled tiles start exactly `spawnDrop` cells above their socket — the
+        // whole column falls in as one connected strip, so no gaps ever show
+        transform: `translate(${c * 100}%, ${(spawned ? r - (tile.spawnDrop ?? rows) : r) * 100}%)`,
         transition: spawned
-          ? `transform 400ms cubic-bezier(0.3, 0.85, 0.35, 1.12) ${c * 22}ms`
-          : 'transform 230ms cubic-bezier(0.28, 0.82, 0.34, 1.06)',
+          ? 'transform 380ms cubic-bezier(0.34, 0.7, 0.3, 1.04)'
+          : 'transform 220ms cubic-bezier(0.3, 0.75, 0.3, 1.03)',
         zIndex: selected ? 20 : 10,
         willChange: 'transform',
       }}
     >
+      {/* key flips when the tile is released → remount arms the landing squash,
+          which fires (via CSS delay) exactly when the 380ms fall completes */}
       <div
+        key={spawned ? 'in-flight' : 'landed'}
         className={cn(
-          'absolute inset-[7%] flex items-center justify-center',
+          'anim-tile-land absolute inset-[7%] flex items-center justify-center',
           selected && 'anim-tile-select z-20',
           hinted && !selected && 'anim-wiggle',
           specialClass,

@@ -3,6 +3,7 @@
 import * as React from 'react'
 import { ChevronRight, Play } from 'lucide-react'
 import { A } from '@/lib/game/assets'
+import { initAudio, sfx } from '@/lib/game/sound'
 import { LEVELS_PER_CHAPTER, TOTAL_CHAPTERS, chapterDef, chapterLevelIds, chapterOf } from '@/lib/game/levels'
 import type { ProgressMap } from '@/hooks/use-progress'
 import { FloatingPetals, HudPill, IconButton, RibbonBanner, WoodButton } from './ui'
@@ -55,7 +56,7 @@ export function AtlasScreen({
       </div>
       {onBack && (
         <div className="absolute top-3 left-3 z-30">
-          <IconButton img={A('icon-back')} label="Back to Home" onClick={onBack} />
+          <IconButton img={A('icon-back')} label="Back to Home" onClick={onBack} sound="back" />
         </div>
       )}
       <div className="absolute top-3 right-3 z-30">
@@ -100,7 +101,11 @@ export function AtlasScreen({
               key={ch.id}
               type="button"
               disabled={locked}
-              onClick={() => onSelectChapter(ch.id)}
+              onClick={() => {
+                initAudio()
+                sfx.select()
+                onSelectChapter(ch.id)
+              }}
               aria-label={`Chapter ${ch.numeral} — ${ch.title}${locked ? ' — locked' : ''}, ${earned} of ${STARS_PER_CHAPTER} stars`}
               className={cn(
                 'chapter-node relative w-full mb-3 text-left select-none',

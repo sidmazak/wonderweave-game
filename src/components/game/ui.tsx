@@ -8,6 +8,14 @@ import { initAudio, sfx } from '@/lib/game/sound'
 /* ---------------- Buttons ---------------- */
 
 type BtnVariant = 'wood' | 'leaf' | 'berry'
+type BtnSound = 'ui' | 'back' | 'select'
+
+function playBtnSound(sound: BtnSound): void {
+  initAudio()
+  if (sound === 'back') sfx.uiBack()
+  else if (sound === 'select') sfx.select()
+  else sfx.ui()
+}
 
 export function WoodButton({
   children,
@@ -18,6 +26,7 @@ export function WoodButton({
   disabled,
   ariaLabel,
   type = 'button',
+  sound = 'ui',
 }: {
   children: React.ReactNode
   variant?: BtnVariant
@@ -27,6 +36,7 @@ export function WoodButton({
   disabled?: boolean
   ariaLabel?: string
   type?: 'button' | 'submit'
+  sound?: BtnSound
 }) {
   const sizes = {
     sm: 'px-3 py-1.5 text-sm rounded-lg',
@@ -45,8 +55,7 @@ export function WoodButton({
       aria-label={ariaLabel}
       disabled={disabled}
       onClick={() => {
-        initAudio()
-        sfx.ui()
+        playBtnSound(sound)
         onClick?.()
       }}
       className={cn(
@@ -69,6 +78,7 @@ export function IconButton({
   onClick,
   children,
   label,
+  sound = 'ui',
 }: {
   img?: string
   alt?: string
@@ -76,6 +86,7 @@ export function IconButton({
   onClick?: () => void
   children?: React.ReactNode
   label: string
+  sound?: BtnSound
 }) {
   return (
     <button
@@ -83,8 +94,7 @@ export function IconButton({
       aria-label={label}
       title={label}
       onClick={() => {
-        initAudio()
-        sfx.ui()
+        playBtnSound(sound)
         onClick?.()
       }}
       className={cn(

@@ -126,8 +126,10 @@ export const sfx = {
   },
   pop(cascade: number, index = 0): void {
     const base = LADDER[Math.min(LADDER.length - 1, cascade + Math.floor(index / 3))]
-    tone(base, 0.22, { vol: 0.18 })
-    tone(base * 2, 0.12, { vol: 0.06, delay: 0.02 })
+    tone(base, 0.2, { vol: 0.18 })
+    tone(base * 2, 0.11, { vol: 0.06, delay: 0.02 })
+    // a tiny shimmer joins in from the second cascade onward — the weave sings higher
+    if (cascade >= 1) tone(base * 3, 0.09, { vol: 0.035 + Math.min(0.03, cascade * 0.008), delay: 0.04 })
   },
   specialCreate(): void {
     ;[880, 1108.7, 1318.5].forEach((f, i) => tone(f, 0.16, { vol: 0.13, delay: i * 0.05 }))

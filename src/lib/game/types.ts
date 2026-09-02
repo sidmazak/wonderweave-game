@@ -22,6 +22,8 @@ export interface Tile {
   clearing?: boolean
   /** true for tiles created by refill (used for drop-in animation) */
   spawned?: boolean
+  /** how many cells above its landing spot a refilled tile starts (column depth) */
+  spawnDrop?: number
 }
 
 export type Grid = (Tile | null)[][] // grid[row][col]

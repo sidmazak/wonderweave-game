@@ -2,6 +2,7 @@
 
 import * as React from 'react'
 import { A } from '@/lib/game/assets'
+import { initAudio, sfx } from '@/lib/game/sound'
 import { LEVELS_PER_CHAPTER, chapterDef, chapterLevelIds } from '@/lib/game/levels'
 import type { ProgressMap } from '@/hooks/use-progress'
 import { IconButton, ProgressBar, RibbonBanner } from './ui'
@@ -42,7 +43,7 @@ export function ChapterScreen({
 
       {/* back to atlas — z-30 + pointer-safe header so the ribbon never eats taps */}
       <div className="absolute top-3 left-3 z-30">
-        <IconButton img={A('icon-back')} label="Back to Atlas" onClick={onBack} />
+        <IconButton img={A('icon-back')} label="Back to Atlas" onClick={onBack} sound="back" />
       </div>
 
       {/* ribbon header */}
@@ -76,7 +77,11 @@ export function ChapterScreen({
                   key={levelId}
                   type="button"
                   disabled={locked}
-                  onClick={() => onPlayLevel(levelId)}
+                  onClick={() => {
+                    initAudio()
+                    sfx.select()
+                    onPlayLevel(levelId)
+                  }}
                   aria-label={
                     locked
                       ? `Stage ${label} — locked`

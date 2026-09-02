@@ -97,7 +97,8 @@ export function HomeScreen({
             className="w-[300px] max-w-[84vw] select-none anim-wobble drop-shadow-[0_10px_24px_rgba(0,0,0,0.55)]"
           />
 
-          {/* hero PLAY — gold-trimmed leaf plaque styled from the game's own art language */}
+          {/* hero PLAY — a hand-painted carved-plaque asset (generated in the
+              game's own art style), deep-red PLAY like the reference mock */}
           <button
             type="button"
             aria-label={dailyDone ? 'Play — continue your journey' : 'Play — continue your journey, the daily folio awaits'}
@@ -106,11 +107,23 @@ export function HomeScreen({
               sfx.ui()
               onPlay()
             }}
-            className="play-hero anim-ring-pulse w-full max-w-[260px] px-8 py-4 font-display font-bold uppercase tracking-[0.2em] text-xl cursor-pointer select-none inline-flex items-center justify-center gap-2.5 min-h-[56px]"
+            className="play-plaque group relative w-full max-w-[290px] cursor-pointer select-none rounded-[30px] overflow-hidden anim-ring-pulse focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#ffd76e]/70"
+            style={{
+              aspectRatio: '1178 / 618',
+              backgroundImage: `url(${A('play-btn')})`,
+              backgroundSize: '100% 100%',
+              backgroundRepeat: 'no-repeat',
+              filter: 'drop-shadow(0 10px 18px rgba(10, 20, 10, 0.55))',
+            }}
           >
-            <img src={A('star-sparkle')} alt="" aria-hidden draggable={false} className="w-5 h-5 object-contain" />
-            Play
-            <Play className="w-5 h-5" aria-hidden />
+            <span
+              className="absolute inset-0 flex items-center justify-center gap-2.5 font-display font-black uppercase tracking-[0.16em] text-[#a2372c] text-[27px] sm:text-[30px] transition-transform duration-200 group-active:scale-95"
+              style={{ textShadow: '0 1px 0 rgba(255,252,240,0.9), 0 3px 8px rgba(140,80,30,0.3)' }}
+            >
+              <img src={A('star-sparkle')} alt="" aria-hidden draggable={false} className="w-6 h-6 sm:w-7 sm:h-7 object-contain anim-glow-pulse" />
+              Play
+              <Play className="w-6 h-6 sm:w-7 sm:h-7" strokeWidth={2.6} aria-hidden />
+            </span>
           </button>
 
           <WoodSecondary onClick={onHowTo} label="How to Play" />
@@ -144,7 +157,7 @@ export function HomeScreen({
       </div>
 
       {/* a few bold leaves drifting IN FRONT of the scene for storybook depth */}
-      <FallingLeaves count={4} className="z-[15]" bold />
+      <FallingLeaves count={5} className="z-[15]" bold />
     </div>
   )
 }

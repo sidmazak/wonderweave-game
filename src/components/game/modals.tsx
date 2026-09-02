@@ -3,6 +3,7 @@
 import * as React from 'react'
 import { cn } from '@/lib/utils'
 import { A, TILE_IMG } from '@/lib/game/assets'
+import { sfx } from '@/lib/game/sound'
 import { WoodButton, IconButton, ModalShell, ParchmentPanel, StarRow, CountUp, RibbonBanner } from './ui'
 import type { LevelDef, LevelResult } from '@/lib/game/types'
 import type { RewardSummary } from './PlayScreen'
@@ -101,6 +102,13 @@ export function FolioSealedModal({
   onReplay: () => void
   onExit: () => void
 }) {
+  // a soft reward chime once the win fanfare + star pops have had their moment
+  React.useEffect(() => {
+    if (!rewards || (rewards.lumens <= 0 && rewards.lens <= 0 && rewards.null <= 0)) return
+    const t = setTimeout(() => sfx.reward(), 1350)
+    return () => clearTimeout(t)
+  }, [rewards])
+
   return (
     <Modal>
       <div className="relative">
