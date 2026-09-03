@@ -4,7 +4,9 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { BoosterInventory, BoosterKind, DailyRewards, DailyState } from '@/lib/game/types'
 import { dateKey, dailyRewardFor, yesterdayKey } from '@/lib/game/daily'
 import { discover, resetCodex } from '@/lib/game/codex'
-import { LEVELS_PER_CHAPTER } from '@/lib/game/levels'
+import { LEVELS_PER_CHAPTER, TOTAL_CHAPTERS, chapterOf } from '@/lib/game/levels'
+import { generateWeaverName, isLegacyWeaverName } from '@/lib/game/weaver-names'
+import { ensureSaveSchema } from '@/lib/game/save-schema'
 
 export interface LevelRecord {
   stars: number
@@ -22,23 +24,45 @@ const LS_DAILY = 'ww-daily'
 
 const DEFAULT_INVENTORY: BoosterInventory = { lens: 3, null: 3 }
 
-function randomName(): string {
-  const a = ['Fern', 'Moss', 'Bramble', 'Wren', 'Clover', 'Dew', 'Sage', 'Petal', 'Thistle', 'Rowan']
-  const b = ['weaver', 'spinner', 'threader', 'stitcher', 'loomer']
-  return `${a[Math.floor(Math.random() * a.length)]}${b[Math.floor(Math.random() * b.length)]}-${Math.floor(1000 + Math.random() * 9000)}`
+function storeWeaverName(name: string): string {
+  localStorage.setItem(LS_PLAYER_NAME, name)
+  return name
+}
+
+function freshWeaverName(): string {
+  return storeWeaverName(generateWeaverName())
+}
+
+function newPlayerId(): string {
+  const c = typeof globalThis !== 'undefined' ? globalThis.crypto : undefined
+  if (c && typeof c.randomUUID === 'function') {
+    try {
+      return c.randomUUID()
+    } catch {
+      /* insecure context — fall through */
+    }
+  }
+  if (c && typeof c.getRandomValues === 'function') {
+    const bytes = new Uint8Array(16)
+    c.getRandomValues(bytes)
+    bytes[6] = (bytes[6]! & 0x0f) | 0x40
+    bytes[8] = (bytes[8]! & 0x3f) | 0x80
+    const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('')
+    return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`
+  }
+  return `ww-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`
 }
 
 function ensurePlayer(): { id: string; name: string } {
   if (typeof window === 'undefined') return { id: '', name: '' }
   let id = localStorage.getItem(LS_PLAYER_ID)
   if (!id) {
-    id = crypto.randomUUID()
+    id = newPlayerId()
     localStorage.setItem(LS_PLAYER_ID, id)
   }
   let name = localStorage.getItem(LS_PLAYER_NAME)
-  if (!name) {
-    name = randomName()
-    localStorage.setItem(LS_PLAYER_NAME, name)
+  if (!name || isLegacyWeaverName(name)) {
+    name = freshWeaverName()
   }
   return { id, name }
 }
@@ -90,86 +114,39 @@ export function useProgress() {
   const nameRef = useRef('')
 
   useEffect(() => {
-    let cancelled = false
-    const init = async () => {
-      const p = ensurePlayer()
-      nameRef.current = p.name
-      const local = loadJSON<ProgressMap>(LS_PROGRESS, {})
-      progressRef.current = local
-      await Promise.resolve()
-      if (cancelled) return
-      setPlayer(p)
-      setProgress(local)
-      const lumensLoaded = loadJSON<number>(LS_LUMENS, 40)
-      lumensRef.current = lumensLoaded
-      setLumens(lumensLoaded)
-      const invLoaded: BoosterInventory = { ...DEFAULT_INVENTORY, ...loadJSON<BoosterInventory>(LS_INVENTORY, DEFAULT_INVENTORY) }
-      inventoryRef.current = invLoaded
-      setInventory(invLoaded)
-      const dailyLoaded = loadJSON<DailyState>(LS_DAILY, { last: null, streak: 0 })
-      dailyRef.current = dailyLoaded
-      setDaily(dailyLoaded)
-
-      // sync with server in background (best-effort)
-      try {
-        await fetch('/api/player', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id: p.id, name: p.name }),
-        })
-        const res = await fetch(`/api/progress?playerId=${encodeURIComponent(p.id)}`)
-        if (res.ok && !cancelled) {
-          const data = (await res.json()) as { progress: { level: number; stars: number; bestScore: number }[] }
-          setProgress((prev) => {
-            const merged: ProgressMap = { ...prev }
-            for (const row of data.progress) {
-              const cur = merged[row.level]
-              merged[row.level] = {
-                stars: Math.max(cur?.stars ?? 0, row.stars),
-                bestScore: Math.max(cur?.bestScore ?? 0, row.bestScore),
-              }
-            }
-            progressRef.current = merged
-            saveJSON(LS_PROGRESS, merged)
-            return merged
-          })
-        }
-      } catch {
-        /* offline: local progress remains authoritative */
-      }
-    }
-    void init()
-    return () => {
-      cancelled = true
-    }
+    ensureSaveSchema()
+    const p = ensurePlayer()
+    nameRef.current = p.name
+    const local = loadJSON<ProgressMap>(LS_PROGRESS, {})
+    progressRef.current = local
+    setPlayer(p)
+    setProgress(local)
+    const lumensLoaded = loadJSON<number>(LS_LUMENS, 40)
+    lumensRef.current = lumensLoaded
+    setLumens(lumensLoaded)
+    const invLoaded: BoosterInventory = { ...DEFAULT_INVENTORY, ...loadJSON<BoosterInventory>(LS_INVENTORY, DEFAULT_INVENTORY) }
+    inventoryRef.current = invLoaded
+    setInventory(invLoaded)
+    const dailyLoaded = loadJSON<DailyState>(LS_DAILY, { last: null, streak: 0 })
+    dailyRef.current = dailyLoaded
+    setDaily(dailyLoaded)
   }, [])
 
-  const saveResult = useCallback(
-    (levelId: number, score: number, stars: number) => {
-      setProgress((prev) => {
-        const cur = prev[levelId]
-        const next: ProgressMap = {
-          ...prev,
-          [levelId]: {
-            stars: Math.max(cur?.stars ?? 0, stars),
-            bestScore: Math.max(cur?.bestScore ?? 0, score),
-          },
-        }
-        progressRef.current = next
-        saveJSON(LS_PROGRESS, next)
-        return next
-      })
-      // fire-and-forget server save (campaign stages only)
-      if (player.id && levelId > 0) {
-        void fetch('/api/progress', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ playerId: player.id, level: levelId, score, stars, playerName: nameRef.current }),
-        }).catch(() => {})
+  const saveResult = useCallback((levelId: number, score: number, stars: number) => {
+    setProgress((prev) => {
+      const cur = prev[levelId]
+      const next: ProgressMap = {
+        ...prev,
+        [levelId]: {
+          stars: Math.max(cur?.stars ?? 0, stars),
+          bestScore: Math.max(cur?.bestScore ?? 0, score),
+        },
       }
-    },
-    [player.id],
-  )
+      progressRef.current = next
+      saveJSON(LS_PROGRESS, next)
+      return next
+    })
+  }, [])
 
   const addLumens = useCallback((n: number) => {
     const next = Math.max(0, lumensRef.current + n)
@@ -234,24 +211,14 @@ export function useProgress() {
     return rewards
   }, [])
 
-  const setName = useCallback(
-    (name: string) => {
-      const trimmed = name.trim().slice(0, 20) || randomName()
-      nameRef.current = trimmed
-      localStorage.setItem(LS_PLAYER_NAME, trimmed)
-      setPlayer((p) => ({ ...p, name: trimmed }))
-      if (player.id) {
-        void fetch('/api/player', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id: player.id, name: trimmed }),
-        }).catch(() => {})
-      }
-    },
-    [player.id],
-  )
+  const setName = useCallback((name: string) => {
+    const trimmed = name.trim().slice(0, 18) || generateWeaverName()
+    nameRef.current = trimmed
+    localStorage.setItem(LS_PLAYER_NAME, trimmed)
+    setPlayer((p) => ({ ...p, name: trimmed }))
+  }, [])
 
-  /** Wipe the whole journey — stars, lumens, instruments, daily streak and codex.
+  /** Wipe the whole journey — stars, lumens, instruments, daily streak, codex, and weaver name.
       Settings (audio/volume toggles) are intentionally kept. */
   const resetAll = useCallback(() => {
     progressRef.current = {}
@@ -268,11 +235,10 @@ export function useProgress() {
     saveJSON(LS_DAILY, freshDaily)
     setDaily(freshDaily)
     resetCodex()
-    // best-effort server wipe so a refresh cannot resurrect old records
-    if (player.id) {
-      void fetch(`/api/progress?playerId=${encodeURIComponent(player.id)}`, { method: 'DELETE' }).catch(() => {})
-    }
-  }, [player.id])
+    const newName = freshWeaverName()
+    nameRef.current = newName
+    setPlayer((p) => ({ ...p, name: newName }))
+  }, [])
 
   const totals = Object.values(progress).reduce(
     (acc, rec) => ({ stars: acc.stars + rec.stars, score: acc.score + rec.bestScore, levels: acc.levels + 1 }),
@@ -293,20 +259,24 @@ export function useProgress() {
 
   const onLevelWin = useCallback(
     (levelId: number, stars: number, score: number) => {
-      // full rewards only when this seal actually improves the folio —
-      // replaying a mastered stage grants a small consolation instead
       const prev = progressRef.current[levelId]
       const improved = !prev || stars > prev.stars || score > prev.bestScore
       saveResult(levelId, score, stars)
       const r = improved ? levelRewards(stars, score) : replayRewards(stars)
       addLumens(r.lumens)
       addBoosters({ lens: r.lens, null: r.null })
-      // codex milestones
       const ids: string[] = ['entity:wizard']
       if (stars >= 3) ids.push('entity:cheer')
-      if (levelId >= 12) ids.push('entity:walk')
-      discover(...ids)
-      return { ...r, improved }
+      if (levelId === LEVELS_PER_CHAPTER) ids.push('entity:walk')
+      const stageInChapter = ((levelId - 1) % LEVELS_PER_CHAPTER) + 1
+      if (levelId > 0 && stageInChapter === LEVELS_PER_CHAPTER) {
+        const ch = chapterOf(levelId)
+        const loreCore = ((ch.id - 1) % TOTAL_CHAPTERS) + 1
+        ids.push(`lore:${loreCore}`)
+      }
+      const freshDiscoveries = discover(...ids)
+      const chapterSealed = levelId > 0 && stageInChapter === LEVELS_PER_CHAPTER
+      return { ...r, improved, discoveries: freshDiscoveries, chapterSealed, chapterId: chapterOf(levelId).id }
     },
     [addBoosters, addLumens, saveResult],
   )

@@ -3,9 +3,9 @@
 import * as React from 'react'
 import { A } from '@/lib/game/assets'
 import { initAudio, sfx } from '@/lib/game/sound'
-import { LEVELS_PER_CHAPTER, chapterDef, chapterLevelIds } from '@/lib/game/levels'
+import { LEVELS_PER_CHAPTER, chapterDef, chapterLevelIds, chapterDecoKey, chapterBackdropTint } from '@/lib/game/levels'
 import type { ProgressMap } from '@/hooks/use-progress'
-import { IconButton, ProgressBar, RibbonBanner } from './ui'
+import { ProgressBar, SceneBackdrop, ScreenHeader } from './ui'
 import { cn } from '@/lib/utils'
 
 const STARS_PER_CHAPTER = LEVELS_PER_CHAPTER * 3
@@ -32,37 +32,32 @@ export function ChapterScreen({
   const ch = chapterDef(Math.max(1, chapterId))
   const ids = chapterLevelIds(ch.id)
   const chapterStars = ids.reduce((sum, id) => sum + (progress[id]?.stars ?? 0), 0)
+  const chapterDeco = chapterDecoKey(ch.bg)
 
   return (
     <div className="relative flex-1 flex flex-col overflow-hidden">
-      {/* dimmed chapter backdrop */}
-      <div aria-hidden className="absolute inset-0">
-        <img src={A(ch.bg)} alt="" draggable={false} className="absolute inset-0 w-full h-full object-cover select-none" />
-        <div className="absolute inset-0 bg-gradient-to-b from-[#0e1c14]/40 via-[#0e1c14]/20 to-[#0e1c14]/55" />
-      </div>
+      <SceneBackdrop
+        src={A(ch.bg)}
+        tint={chapterBackdropTint(ch.bg)}
+        overlayClassName="bg-gradient-to-b from-[#0e1c14]/40 via-[#0e1c14]/20 to-[#0e1c14]/55"
+      />
 
-      {/* back to atlas — z-30 + pointer-safe header so the ribbon never eats taps */}
-      <div className="absolute top-3 left-3 z-30">
-        <IconButton img={A('icon-back')} label="Back to Atlas" onClick={onBack} sound="back" />
-      </div>
-
-      {/* ribbon header */}
-      <header className="relative z-20 pt-4 pointer-events-none">
-        <RibbonBanner title={`CHAPTER ${ch.numeral}`} subtitle={ch.title} />
-      </header>
+      <ScreenHeader
+        title={`CHAPTER ${ch.numeral}`}
+        subtitle={ch.title}
+        onBack={onBack}
+        backLabel="Back to Atlas"
+        className="z-20"
+      />
 
       {/* scrollable middle: island + stage grid */}
-      <div className="relative z-10 flex-1 overflow-y-auto ww-scroll" style={{ WebkitOverflowScrolling: 'touch' }}>
+      <div className="relative z-10 flex-1 overflow-y-auto ww-scroll mt-1" style={{ WebkitOverflowScrolling: 'touch' }}>
         <img
-          src={A('deco-island')}
+          src={A(chapterDeco)}
           alt=""
           aria-hidden
           draggable={false}
           className="w-44 mx-auto my-1 anim-float drop-shadow-2xl pointer-events-none select-none"
-          style={{
-            maskImage: 'radial-gradient(ellipse 62% 58% at 50% 46%, black 55%, transparent 92%)',
-            WebkitMaskImage: 'radial-gradient(ellipse 62% 58% at 50% 46%, black 55%, transparent 92%)',
-          }}
         />
         <div className="px-5 pb-4">
           <div className="grid grid-cols-3 gap-3">
@@ -95,18 +90,25 @@ export function ChapterScreen({
                   )}
                 >
                   {locked ? (
-                    <img src={A('medallion-lock')} alt="" aria-hidden draggable={false} className="w-7 h-7 object-contain" />
+                    <>
+                      <img src={A('medallion-lock')} alt="" aria-hidden draggable={false} className="w-7 h-7 object-contain opacity-90" />
+                      <span className="flex items-center gap-0.5 mt-0.5" aria-hidden>
+                        {[0, 1, 2].map((s) => (
+                          <img key={s} src={A('star-sparkle')} alt="" draggable={false} className="level-star level-star-empty" />
+                        ))}
+                      </span>
+                    </>
                   ) : (
                     <>
                       <span className="font-display font-extrabold text-xl leading-none">{label}</span>
-                      <span className="flex items-center gap-0.5" aria-hidden>
+                      <span className="flex items-center gap-0.5 mt-0.5" aria-hidden>
                         {[0, 1, 2].map((s) => (
                           <img
                             key={s}
                             src={A('star-sparkle')}
                             alt=""
                             draggable={false}
-                            className={cn('w-3.5 h-3.5 object-contain', s >= stars ? 'grayscale opacity-40' : '')}
+                            className={cn('level-star', s < stars ? 'level-star-earned' : 'level-star-empty')}
                           />
                         ))}
                       </span>

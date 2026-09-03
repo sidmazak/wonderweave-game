@@ -9,8 +9,6 @@ export const DEFAULT_SETTINGS: WWSettings = {
   sfxVol: 0.7,
   vibrations: true,
   particles: true,
-  reducedMotion: false,
-  highContrast: false,
 }
 
 const LS_KEY = 'ww-settings'
@@ -18,8 +16,13 @@ const LS_KEY = 'ww-settings'
 function load(): WWSettings {
   if (typeof window === 'undefined') return DEFAULT_SETTINGS
   try {
-    const raw = JSON.parse(localStorage.getItem(LS_KEY) ?? '{}')
-    return { ...DEFAULT_SETTINGS, ...raw } as WWSettings
+    const raw = JSON.parse(localStorage.getItem(LS_KEY) ?? '{}') as Partial<WWSettings>
+    return {
+      musicVol: typeof raw.musicVol === 'number' ? raw.musicVol : DEFAULT_SETTINGS.musicVol,
+      sfxVol: typeof raw.sfxVol === 'number' ? raw.sfxVol : DEFAULT_SETTINGS.sfxVol,
+      vibrations: typeof raw.vibrations === 'boolean' ? raw.vibrations : DEFAULT_SETTINGS.vibrations,
+      particles: typeof raw.particles === 'boolean' ? raw.particles : DEFAULT_SETTINGS.particles,
+    }
   } catch {
     return DEFAULT_SETTINGS
   }
@@ -44,13 +47,6 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     setMusicVolume(loaded.musicVol)
     setReady(true)
   }, [])
-
-  // respect the OS-level preference until the player chooses otherwise
-  React.useEffect(() => {
-    if (!ready || typeof window === 'undefined' || localStorage.getItem(LS_KEY)) return
-    const mq = window.matchMedia('(prefers-reduced-motion: reduce)')
-    if (mq.matches) setSettings((s) => ({ ...s, reducedMotion: true }))
-  }, [ready])
 
   const update = React.useCallback((patch: Partial<WWSettings>) => {
     setSettings((prev) => {

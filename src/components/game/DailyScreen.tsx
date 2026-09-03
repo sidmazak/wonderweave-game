@@ -2,11 +2,21 @@
 
 import * as React from 'react'
 import { Search, Hammer } from 'lucide-react'
-import { A, TILE_IMG } from '@/lib/game/assets'
+import { A } from '@/lib/game/assets'
 import { TILE_META } from '@/lib/game/levels'
 import { dateKey, prettyDate, getDailyLevel, dailyRewardFor } from '@/lib/game/daily'
 import type { DailyState } from '@/lib/game/types'
-import { RibbonBanner, WoodButton, IconButton } from './ui'
+import { BoardTileIcon, ScoreGoalIcon, WoodButton, SceneBackdrop, ScreenHeader } from './ui'
+import { SCORE_GOAL_HINT } from '@/lib/game/objectives'
+
+/** Poetic streak whispers — reward returning weavers with lore breadcrumbs. */
+function streakWhisper(streak: number): string {
+  if (streak >= 14) return 'The Folio remembers your name across fourteen dawns.'
+  if (streak >= 7) return 'A week of faithful weaving — the threads lean toward you.'
+  if (streak >= 3) return 'Three days in a row; even the lantern burns a little brighter.'
+  if (streak >= 1) return 'Complete daily pages to grow your streak.'
+  return 'Light the first page — tomorrow the story continues.'
+}
 
 /** Today's Folio — a fresh seeded stage every calendar day, with a streak to tend. */
 export function DailyScreen({ daily, onBack, onPlay }: { daily: DailyState; onBack: () => void; onPlay: () => void }) {
@@ -17,20 +27,17 @@ export function DailyScreen({ daily, onBack, onPlay }: { daily: DailyState; onBa
 
   return (
     <div className="relative flex h-full w-full flex-col overflow-hidden bg-[#101d13] ww-tap-none">
-      {/* backdrop */}
-      <div className="absolute inset-0" aria-hidden>
-        <img src={A('bg-sunset')} alt="" draggable={false} className="h-full w-full object-cover opacity-25" />
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_38%,rgba(5,9,5,0.78)_100%)]" />
-      </div>
+      <SceneBackdrop
+        src={A('bg-sunset')}
+        tint="#3d1a2e"
+        opacity={0.25}
+        overlayClassName="bg-[radial-gradient(ellipse_at_center,transparent_38%,rgba(5,9,5,0.78)_100%)]"
+      />
 
-      <IconButton img={A('icon-back')} label="Back" onClick={onBack} sound="back" className="absolute top-3 left-3 z-20" />
+      <ScreenHeader title="DAILY FOLIO" subtitle="New Challenge Every Day" onBack={onBack} backLabel="Back" />
 
       <div className="relative z-10 flex h-full min-h-0 flex-col">
-        <header className="pt-4 px-4">
-          <RibbonBanner title="DAILY FOLIO" subtitle="New Challenge Every Day" />
-        </header>
-
-        <main className="flex-1 min-h-0 overflow-y-auto ww-scroll px-4 pt-3 pb-4 flex flex-col items-center">
+        <main className="flex-1 min-h-0 overflow-y-auto ww-scroll px-4 pt-2 pb-4 flex flex-col items-center">
           {/* date pill */}
           <div className="goal-card px-4 py-1 rounded-full text-sm font-bold text-[#5d3a1a] mt-1 mb-3">
             {prettyDate(today)}
@@ -47,33 +54,27 @@ export function DailyScreen({ daily, onBack, onPlay }: { daily: DailyState; onBa
 
             {/* today's quest */}
             <p className="text-[11px] font-bold uppercase tracking-[0.25em] text-[#8a6a3a] mt-3">Today&rsquo;s Quest</p>
-            <p className="text-base font-semibold text-[#5d3a1a] text-center leading-relaxed mt-1">
+            <div className="flex flex-col items-center gap-2 mt-2 w-full">
               {level.objective.kind === 'collect' && level.objective.collect ? (
-                <>
-                  Collect{' '}
-                  {level.objective.collect.map((g, i) => (
-                    <React.Fragment key={g.type}>
-                      {i > 0 ? ' & ' : ''}
-                      <img
-                        src={TILE_IMG[g.type]}
-                        alt={TILE_META[g.type].name}
-                        draggable={false}
-                        className="inline-block w-6 h-6 object-contain align-middle mx-0.5"
-                      />{' '}
-                      <span className="tabular-nums">{g.count}</span> {TILE_META[g.type].name}
-                    </React.Fragment>
-                  ))}
-                </>
+                level.objective.collect.map((g) => (
+                  <div key={g.type} className="flex items-center gap-2.5">
+                    <BoardTileIcon type={g.type} size="goal" />
+                    <p className="text-sm font-semibold text-[#5d3a1a] text-left leading-snug">
+                      Collect <span className="tabular-nums">{g.count}×</span> {TILE_META[g.type].name}
+                      <span className="block text-[11px] font-medium text-[#7a5c34]">Match this charm on the board</span>
+                    </p>
+                  </div>
+                ))
               ) : (
-                <>
-                  Weave at least{' '}
-                  <span className="tabular-nums font-extrabold">
-                    {(level.objective.score ?? 0).toLocaleString()}
-                  </span>{' '}
-                  threads in one journey
-                </>
+                <div className="flex items-center gap-2.5">
+                  <ScoreGoalIcon />
+                  <p className="text-sm font-semibold text-[#5d3a1a] text-left leading-snug">
+                    Reach <span className="tabular-nums font-extrabold">{(level.objective.score ?? 0).toLocaleString()}</span> pts
+                    <span className="block text-[11px] font-medium text-[#7a5c34]">{SCORE_GOAL_HINT}</span>
+                  </p>
+                </div>
               )}
-            </p>
+            </div>
 
             <hr className="ww-divider w-full my-4" />
 
@@ -131,7 +132,7 @@ export function DailyScreen({ daily, onBack, onPlay }: { daily: DailyState; onBa
               <span className="ww-ornament">✦</span> Streak: {daily.streak} Day{daily.streak === 1 ? '' : 's'}{' '}
               <span className="ww-ornament">✦</span>
             </p>
-            <p className="text-[11px] text-[#9a7c4e] mt-1">Complete daily pages to grow your streak.</p>
+            <p className="text-[11px] text-[#9a7c4e] mt-1 italic">{streakWhisper(daily.streak)}</p>
           </footer>
         </main>
       </div>

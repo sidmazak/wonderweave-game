@@ -22,8 +22,18 @@ export interface PreloadHandle {
   cancel: () => void
 }
 
-const SESSION_KEY = 'ww-preloaded-v1'
+const SESSION_KEY = 'ww-preloaded-v10'
 const MAX_RETRIES = 1
+
+/** Clear the session preload flag so the loader runs again (e.g. after reset). */
+export function clearPreloadSession(): void {
+  if (typeof window === 'undefined') return
+  try {
+    sessionStorage.removeItem(SESSION_KEY)
+  } catch {
+    /* private mode */
+  }
+}
 
 function loadImage(src: string, retries: number): Promise<void> {
   return new Promise((resolve) => {

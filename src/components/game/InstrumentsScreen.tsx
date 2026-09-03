@@ -1,11 +1,11 @@
 'use client'
 
 import * as React from 'react'
-import { Music, Volume2, Vibrate, Sparkles, Wind, Contrast, Languages, ChevronRight, LifeBuoy, ScrollText, Sprout } from 'lucide-react'
+import { Music, Volume2, Vibrate, Sparkles, Languages, ChevronRight, LifeBuoy, ScrollText, Sprout } from 'lucide-react'
 import { A } from '@/lib/game/assets'
 import { initAudio, sfx } from '@/lib/game/sound'
 import { useSettings } from './settings'
-import { RibbonBanner, WoodButton, IconButton, ToggleSwitch, StyledSlider, ModalShell, ParchmentPanel } from './ui'
+import { WoodButton, SceneBackdrop, ScreenHeader, ToggleSwitch, StyledSlider, ModalShell, DialogPanel, ParchmentPanel, RibbonBanner } from './ui'
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return <h3 className="text-[11px] font-bold uppercase tracking-[0.28em] text-[#8a6a3a] mt-4 mb-2">{children}</h3>
@@ -39,33 +39,29 @@ export function InstrumentsScreen({
   onBack: () => void
 }) {
   const { settings, update } = useSettings()
-  const [name, setName] = React.useState(playerName)
+  const [nameDraft, setNameDraft] = React.useState<string | null>(null)
+  const name = nameDraft ?? playerName
   const [creditsOpen, setCreditsOpen] = React.useState(false)
   const [resetOpen, setResetOpen] = React.useState(false)
-  const [resetDone, setResetDone] = React.useState(false)
-
-  React.useEffect(() => setName(playerName), [playerName])
 
   const saveName = () => {
     const trimmed = name.trim()
     if (!trimmed) return
     onRename(trimmed)
+    setNameDraft(null)
   }
 
   return (
     <div className="relative flex h-full w-full flex-col overflow-hidden bg-[#101d13] ww-tap-none">
-      {/* backdrop */}
-      <div className="absolute inset-0" aria-hidden>
-        <img src={A('bg-arch')} alt="" draggable={false} className="h-full w-full object-cover opacity-15" />
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_40%,rgba(5,9,5,0.75)_100%)]" />
-      </div>
+      <SceneBackdrop
+        src={A('bg-arch')}
+        tint="#1e2848"
+        opacity={0.15}
+        overlayClassName="bg-[radial-gradient(ellipse_at_center,transparent_40%,rgba(5,9,5,0.75)_100%)]"
+      />
 
-      <IconButton img={A('icon-back')} label="Back" onClick={onBack} sound="back" className="absolute top-3 left-3 z-20" />
-
-      <div className="relative z-10 flex h-full min-h-0 flex-col px-3 pt-3 pb-3">
-        <header className="pt-1 px-1">
-          <RibbonBanner title="INSTRUMENTS" subtitle="Tune Your Experience" size="sm" />
-        </header>
+      <div className="relative z-10 flex h-full min-h-0 flex-col px-3 pb-3">
+        <ScreenHeader title="INSTRUMENTS" subtitle="Tune Your Experience" onBack={onBack} backLabel="Back" size="sm" />
 
         <ParchmentPanel className="flex-1 min-h-0 mt-3">
           <div className="h-full overflow-y-auto ww-scroll p-5">
@@ -109,22 +105,6 @@ export function InstrumentsScreen({
                   checked={settings.particles}
                   onChange={(v) => update({ particles: v })}
                   label="Toggle particles"
-                />
-              </div>
-              <div className="settings-row">
-                <RowLabel icon={<Wind className="w-5 h-5" />}>Reduced Motion</RowLabel>
-                <ToggleSwitch
-                  checked={settings.reducedMotion}
-                  onChange={(v) => update({ reducedMotion: v })}
-                  label="Toggle reduced motion"
-                />
-              </div>
-              <div className="settings-row">
-                <RowLabel icon={<Contrast className="w-5 h-5" />}>High Contrast</RowLabel>
-                <ToggleSwitch
-                  checked={settings.highContrast}
-                  onChange={(v) => update({ highContrast: v })}
-                  label="Toggle high contrast"
                 />
               </div>
             </div>
@@ -207,7 +187,6 @@ export function InstrumentsScreen({
               onClick={() => {
                 initAudio()
                 sfx.ui()
-                setResetDone(false)
                 setResetOpen(true)
               }}
             >
@@ -232,68 +211,53 @@ export function InstrumentsScreen({
       {/* reset-all confirm modal */}
       {resetOpen && (
         <ModalShell onClose={() => setResetOpen(false)} labelledBy="reset-title">
-          <ParchmentPanel className="p-6 text-center">
-            <h2 id="reset-title" className="font-display text-2xl font-extrabold text-[#8c2f2a]">
-              Begin Anew?
-            </h2>
-            <hr className="ww-divider my-3" />
-            {resetDone ? (
-              <>
-                <p className="text-sm text-[#5d3a1a] font-semibold">The folio is blank once more.</p>
-                <p className="text-xs italic text-[#8a6a3a] mt-1">Every thread waits to be woven again.</p>
-              </>
-            ) : (
-              <>
-                <div className="cameo w-[104px] h-[92px] mx-auto my-1" aria-hidden>
-                  <img src={A('bunny-rest')} alt="" className="w-[74px] object-contain" draggable={false} />
-                </div>
-                <p className="text-sm text-[#5d3a1a] font-semibold">This erases your whole journey:</p>
-                <p className="text-xs text-[#8a6a3a] mt-1 leading-relaxed">
-                  all stars &amp; best scores, lumens, Lens &amp; Null instruments,
-                  your daily streak and every codex discovery.
-                </p>
-                <p className="text-[11px] italic text-[#a93a34] font-semibold mt-2">This cannot be undone.</p>
-              </>
-            )}
-            <div className="flex flex-col gap-2 mt-5">
-              {resetDone ? (
-                <WoodButton variant="leaf" onClick={() => setResetOpen(false)}>Return</WoodButton>
-              ) : (
-                <>
-                  <WoodButton
-                    variant="berry"
-                    onClick={() => {
-                      onResetAll()
-                      setResetDone(true)
-                    }}
-                  >
-                    Yes, Reset Everything
-                  </WoodButton>
-                  <WoodButton variant="leaf" onClick={() => setResetOpen(false)}>
-                    Keep My Journey
-                  </WoodButton>
-                </>
-              )}
+          <span id="reset-title" className="sr-only">Begin anew — reset all progress</span>
+          <DialogPanel onClose={() => setResetOpen(false)} closeLabel="Cancel reset" className="text-center" bodyClassName="pb-2">
+            <RibbonBanner size="sm" title="BEGIN ANEW?" subtitle="Reset all progress" className="mb-2" />
+            <div className="cameo w-[104px] h-[92px] mx-auto my-1" aria-hidden>
+              <img src={A('bunny-rest')} alt="" className="w-[74px] object-contain" draggable={false} />
             </div>
-          </ParchmentPanel>
+            <p className="text-sm text-[#5d3a1a] font-semibold">This erases your whole journey:</p>
+            <ul className="text-xs text-[#8a6a3a] mt-2 leading-relaxed text-left max-w-[260px] mx-auto space-y-1 list-disc pl-5">
+              <li>All stars &amp; best scores</li>
+              <li>Lumens, Lens &amp; Null instruments</li>
+              <li>Daily streak &amp; every codex discovery</li>
+              <li>Your weaver name — a fresh one is woven for you</li>
+            </ul>
+            <p className="text-[11px] italic text-[#a93a34] font-semibold mt-3">This cannot be undone.</p>
+            <div className="flex flex-col gap-2 mt-5">
+              <WoodButton
+                variant="berry"
+                onClick={() => {
+                  initAudio()
+                  sfx.ui()
+                  setResetOpen(false)
+                  onResetAll()
+                }}
+              >
+                Yes, Reset Everything
+              </WoodButton>
+              <WoodButton variant="leaf" onClick={() => setResetOpen(false)}>
+                Keep My Journey
+              </WoodButton>
+            </div>
+          </DialogPanel>
         </ModalShell>
       )}
 
       {/* credits modal */}
       {creditsOpen && (
         <ModalShell onClose={() => setCreditsOpen(false)} labelledBy="credits-title">
-          <ParchmentPanel className="p-6 text-center">
-            <h2 id="credits-title" className="font-display text-2xl font-extrabold text-[#5d3a1a]">
-              Credits
-            </h2>
-            <hr className="ww-divider my-3" />
-            <p className="font-display font-bold text-[#5d3a1a]">Wonderweave — Threads of a Forgotten World</p>
+          <span id="credits-title" className="sr-only">Credits</span>
+          <DialogPanel onClose={() => setCreditsOpen(false)} closeLabel="Close credits" className="text-center" bodyClassName="pb-2">
+            <RibbonBanner size="sm" title="CREDITS" subtitle="Wonderweave" className="mb-3" />
+            <p className="font-display font-bold text-[#5d3a1a]">Threads of a Forgotten World</p>
             <p className="text-sm italic text-[#7a5c34] mt-2">Art, code &amp; story — the Wonderweave Atelier</p>
             <p className="text-xs italic text-[#8a6a3a] mt-3">Made with threads, dew &amp; starlight</p>
             <WoodButton variant="leaf" className="w-full mt-5" onClick={() => setCreditsOpen(false)}>
               Close
             </WoodButton>
-          </ParchmentPanel>
+          </DialogPanel>
         </ModalShell>
       )}
     </div>

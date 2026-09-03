@@ -6,7 +6,7 @@ import { A } from '@/lib/game/assets'
 import { initAudio, sfx } from '@/lib/game/sound'
 import { LEVELS_PER_CHAPTER, TOTAL_CHAPTERS, chapterDef, chapterLevelIds, chapterOf } from '@/lib/game/levels'
 import type { ProgressMap } from '@/hooks/use-progress'
-import { FloatingPetals, HudPill, IconButton, RibbonBanner, WoodButton } from './ui'
+import { FloatingPetals, SceneBackdrop, ScreenHeader, StarPill, WoodButton } from './ui'
 import { cn } from '@/lib/utils'
 
 const STARS_PER_CHAPTER = LEVELS_PER_CHAPTER * 3
@@ -43,28 +43,19 @@ export function AtlasScreen({
 
   return (
     <div className="relative flex-1 flex flex-col overflow-hidden">
-      {/* parchment world-map backdrop */}
-      <div aria-hidden className="absolute inset-0">
-        <img src={A('bg-map')} alt="" draggable={false} className="absolute inset-0 w-full h-full object-cover select-none" />
-        <div className="absolute inset-0 bg-[#101d13]/20" />
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_42%,rgba(14,28,20,0.5)_100%)]" />
-      </div>
+      <SceneBackdrop src={A('bg-map')} tint="#c9b080">
+        <div className="absolute inset-0 bg-[#101d13]/20 pointer-events-none" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_42%,rgba(14,28,20,0.5)_100%)] pointer-events-none" />
+      </SceneBackdrop>
 
-      {/* header: ribbon centered, star pill pinned top-right below the fold of the ribbon */}
-      <div className="relative z-20 pt-12">
-        <RibbonBanner title="ATLAS" subtitle="The World Within" />
-      </div>
-      {onBack && (
-        <div className="absolute top-3 left-3 z-30">
-          <IconButton img={A('icon-back')} label="Back to Home" onClick={onBack} sound="back" />
-        </div>
-      )}
-      <div className="absolute top-3 right-3 z-30">
-        <HudPill>
-          <img src={A('star-sparkle')} alt="" draggable={false} className="w-5 h-5 object-contain shrink-0" />
-          <span className="tabular-nums">{totalStars}</span>
-        </HudPill>
-      </div>
+      {/* header: ribbon centered, star pill pinned top-right */}
+      <ScreenHeader
+        title="ATLAS"
+        subtitle="The World Within"
+        onBack={onBack}
+        backLabel="Back to Home"
+        right={<StarPill amount={totalStars} />}
+      />
 
       {/* continue card */}
       <div className="relative z-20 px-4 pt-3">
@@ -114,15 +105,23 @@ export function AtlasScreen({
               )}
             >
               <div className="goal-card p-2.5 flex items-center gap-3">
-                <div className="w-16 h-16 rounded-xl overflow-hidden border-2 border-[#8a5a2b] shrink-0 bg-[#22301c]">
-                  <img src={A(ch.bg)} alt="" aria-hidden draggable={false} className="w-full h-full object-cover" />
+                <div className="relative w-16 h-16 rounded-xl overflow-hidden border-2 border-[#8a5a2b] shrink-0 bg-[#22301c]">
+                  <img
+                    src={A(locked ? 'medallion-lock' : ch.bg)}
+                    alt=""
+                    aria-hidden
+                    draggable={false}
+                    className={cn('chapter-thumb-img', locked && 'opacity-40 grayscale')}
+                  />
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="font-display font-extrabold text-[#5d3a1a] text-sm leading-tight truncate">
-                    {ch.numeral}. {ch.title}
+                    {locked ? `${ch.numeral}. ???` : `${ch.numeral}. ${ch.title}`}
                   </p>
-                  <p className="text-[11px] italic text-[#7a5c34] line-clamp-1">{ch.tagline}</p>
-                  <div className="flex items-center gap-1.5 mt-1">
+                  <p className="text-[11px] italic text-[#7a5c34] line-clamp-1">
+                    {locked ? 'Uncharted isles — seal the prior chapter to reveal' : ch.tagline}
+                  </p>
+                  <div className="flex items-center gap-1.5 mt-1" aria-label={`${earned} of ${STARS_PER_CHAPTER} stars in this chapter`}>
                     <span className="flex items-center gap-0.5" aria-hidden>
                       {[0, 1, 2].map((p) => (
                         <img

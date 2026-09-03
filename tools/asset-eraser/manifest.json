@@ -1,0 +1,415 @@
+{
+  "version": 3,
+  "assetsDir": "public/game/assets",
+  "backupDir": "public/game/assets/_originals",
+  "queue": [
+    {
+      "id": "deco-mushrooms",
+      "label": "Dialog mushrooms (left corner)",
+      "context": "dialog",
+      "status": "done",
+      "notes": "Sanitized — artifacts removed.",
+      "lastSavedAt": "2026-09-02T04:47:30.371Z"
+    },
+    {
+      "id": "deco-flowers",
+      "label": "Dialog flowers (right corner)",
+      "context": "dialog",
+      "status": "done",
+      "notes": "Sanitized — artifacts removed.",
+      "lastSavedAt": "2026-09-02T04:47:30.371Z"
+    },
+    {
+      "id": "deco-island",
+      "label": "Chapter island landmark",
+      "context": "chapter",
+      "status": "done",
+      "notes": "Sanitized — artifacts removed.",
+      "lastSavedAt": "2026-09-02T04:47:30.371Z"
+    },
+    {
+      "id": "bg-sky",
+      "label": "Skyreach Isles backdrop",
+      "context": "backdrop",
+      "status": "done",
+      "notes": "Sanitized — artifacts removed.",
+      "lastSavedAt": "2026-09-02T04:47:30.371Z"
+    },
+    {
+      "id": "bg-sunset",
+      "label": "Ember Falls backdrop",
+      "context": "backdrop",
+      "status": "done",
+      "notes": "Sanitized — artifacts removed.",
+      "lastSavedAt": "2026-09-02T04:47:30.371Z"
+    },
+    {
+      "id": "bg-forest",
+      "label": "Whispering Woods backdrop",
+      "context": "backdrop",
+      "status": "done",
+      "notes": "Sanitized — artifacts removed.",
+      "lastSavedAt": "2026-09-02T04:47:30.371Z"
+    },
+    {
+      "id": "bg-night",
+      "label": "Moonlit Vale backdrop",
+      "context": "backdrop",
+      "status": "done",
+      "notes": "Sanitized — artifacts removed.",
+      "lastSavedAt": "2026-09-02T04:47:30.371Z"
+    },
+    {
+      "id": "bg-arch",
+      "label": "Crystal Ridge backdrop",
+      "context": "backdrop",
+      "status": "done",
+      "notes": "Sanitized — artifacts removed.",
+      "lastSavedAt": "2026-09-02T04:47:30.371Z"
+    },
+    {
+      "id": "bg-altar",
+      "label": "Lanternwick backdrop",
+      "context": "backdrop",
+      "status": "done",
+      "notes": "Sanitized — artifacts removed.",
+      "lastSavedAt": "2026-09-02T04:47:30.371Z"
+    },
+    {
+      "id": "bg-ruins",
+      "label": "Ruined Folio backdrop",
+      "context": "backdrop",
+      "status": "done",
+      "notes": "Sanitized — artifacts removed.",
+      "lastSavedAt": "2026-09-02T04:47:30.371Z"
+    },
+    {
+      "id": "bg-castle",
+      "label": "Home / splash castle scene",
+      "context": "backdrop",
+      "status": "done",
+      "notes": "Sanitized — artifacts removed.",
+      "lastSavedAt": "2026-09-02T04:47:30.371Z"
+    },
+    {
+      "id": "bg-map",
+      "label": "Atlas map parchment",
+      "context": "backdrop",
+      "status": "done",
+      "notes": "Sanitized — artifacts removed.",
+      "lastSavedAt": "2026-09-02T04:47:30.371Z"
+    },
+    {
+      "id": "deco-tree",
+      "label": "Forest chapter landmark",
+      "context": "chapter",
+      "status": "done",
+      "notes": "Sanitized — artifacts removed.",
+      "lastSavedAt": "2026-09-02T04:47:30.371Z"
+    },
+    {
+      "id": "deco-waterfall",
+      "label": "Sunset chapter landmark",
+      "context": "chapter",
+      "status": "done",
+      "notes": "Sanitized — artifacts removed.",
+      "lastSavedAt": "2026-09-02T04:47:30.371Z"
+    },
+    {
+      "id": "deco-moon",
+      "label": "Night chapter landmark",
+      "context": "chapter",
+      "status": "done",
+      "notes": "Sanitized — artifacts removed.",
+      "lastSavedAt": "2026-09-02T04:47:30.371Z"
+    },
+    {
+      "id": "deco-arch",
+      "label": "Crystal arch landmark",
+      "context": "chapter",
+      "status": "done",
+      "notes": "Sanitized — artifacts removed.",
+      "lastSavedAt": "2026-09-02T04:47:30.371Z"
+    },
+    {
+      "id": "deco-lamp",
+      "label": "Altar lantern landmark",
+      "context": "chapter",
+      "status": "done",
+      "notes": "Sanitized — artifacts removed.",
+      "lastSavedAt": "2026-09-02T04:47:30.371Z"
+    },
+    {
+      "id": "deco-sign",
+      "label": "Ruins sign landmark",
+      "context": "chapter",
+      "status": "done",
+      "notes": "Sanitized — artifacts removed.",
+      "lastSavedAt": "2026-09-02T04:47:30.371Z"
+    },
+    {
+      "id": "deco-platform",
+      "label": "Castle platform (home mascot)",
+      "context": "decor",
+      "status": "done",
+      "notes": "Sanitized — artifacts removed.",
+      "lastSavedAt": "2026-09-02T04:47:30.371Z"
+    },
+    {
+      "id": "deco-island-falls",
+      "label": "Island with waterfall variant",
+      "context": "chapter",
+      "status": "done",
+      "notes": "Sanitized — artifacts removed.",
+      "lastSavedAt": "2026-09-02T04:47:30.371Z"
+    },
+    {
+      "id": "deco-cloud-white",
+      "label": "Home drift cloud (white)",
+      "context": "decor",
+      "status": "done",
+      "notes": "Sanitized — artifacts removed.",
+      "lastSavedAt": "2026-09-02T04:47:30.371Z"
+    },
+    {
+      "id": "deco-cloud-pink",
+      "label": "Home drift cloud (pink)",
+      "context": "decor",
+      "status": "done",
+      "notes": "Sanitized — artifacts removed.",
+      "lastSavedAt": "2026-09-02T04:47:30.371Z"
+    },
+    {
+      "id": "deco-clouds-pink",
+      "label": "Pink cloud cluster",
+      "context": "decor",
+      "status": "done",
+      "notes": "Sanitized — artifacts removed.",
+      "lastSavedAt": "2026-09-02T04:47:30.371Z"
+    },
+    {
+      "id": "deco-balloon",
+      "label": "Balloon decoration",
+      "context": "decor",
+      "status": "done",
+      "notes": "Sanitized — artifacts removed.",
+      "lastSavedAt": "2026-09-02T04:47:30.371Z"
+    },
+    {
+      "id": "deco-butterfly",
+      "label": "Butterfly decoration",
+      "context": "decor",
+      "status": "done",
+      "notes": "Sanitized — artifacts removed.",
+      "lastSavedAt": "2026-09-02T04:47:30.371Z"
+    },
+    {
+      "id": "panel-parchment",
+      "label": "Parchment panel frame",
+      "context": "ui",
+      "status": "done",
+      "notes": "Sanitized — artifacts removed.",
+      "lastSavedAt": "2026-09-02T04:47:30.371Z"
+    },
+    {
+      "id": "panel-howto",
+      "label": "How-to panel art",
+      "context": "ui",
+      "status": "done",
+      "notes": "Sanitized — artifacts removed.",
+      "lastSavedAt": "2026-09-02T04:47:30.371Z"
+    },
+    {
+      "id": "dialog-confirm",
+      "label": "Confirm dialog frame",
+      "context": "ui",
+      "status": "done",
+      "notes": "Sanitized — artifacts removed.",
+      "lastSavedAt": "2026-09-02T04:47:30.371Z"
+    },
+    {
+      "id": "logo",
+      "label": "Wonderweave logo",
+      "context": "ui",
+      "status": "done",
+      "notes": "Sanitized — artifacts removed.",
+      "lastSavedAt": "2026-09-02T04:47:30.371Z"
+    },
+    {
+      "id": "plaque-loading",
+      "label": "Loading plaque",
+      "context": "ui",
+      "status": "done",
+      "notes": "Sanitized — artifacts removed.",
+      "lastSavedAt": "2026-09-02T04:47:30.371Z"
+    },
+    {
+      "id": "play-btn",
+      "label": "Hero play button",
+      "context": "ui",
+      "status": "done",
+      "notes": "Sanitized — artifacts removed.",
+      "lastSavedAt": "2026-09-02T04:47:30.371Z"
+    },
+    {
+      "id": "banner-wood",
+      "label": "Wood ribbon banner",
+      "context": "ui",
+      "status": "done",
+      "notes": "Sanitized — artifacts removed.",
+      "lastSavedAt": "2026-09-02T04:47:30.371Z"
+    },
+    {
+      "id": "banner-parch",
+      "label": "Parchment banner",
+      "context": "ui",
+      "status": "done",
+      "notes": "Sanitized — artifacts removed.",
+      "lastSavedAt": "2026-09-02T04:47:30.371Z"
+    },
+    {
+      "id": "banner-floral",
+      "label": "Floral banner",
+      "context": "ui",
+      "status": "done",
+      "notes": "Sanitized — artifacts removed.",
+      "lastSavedAt": "2026-09-02T04:47:30.371Z"
+    },
+    {
+      "id": "banner-combo",
+      "label": "Combo banner",
+      "context": "ui",
+      "status": "done",
+      "notes": "Sanitized — artifacts removed.",
+      "lastSavedAt": "2026-09-02T04:47:30.371Z"
+    },
+    {
+      "id": "banner-objective",
+      "label": "Objective banner",
+      "context": "ui",
+      "status": "done",
+      "notes": "Sanitized — artifacts removed.",
+      "lastSavedAt": "2026-09-02T04:47:30.371Z"
+    },
+    {
+      "id": "frame-square",
+      "label": "Board frame square",
+      "context": "ui",
+      "status": "done",
+      "notes": "Sanitized — artifacts removed.",
+      "lastSavedAt": "2026-09-02T04:47:30.371Z"
+    },
+    {
+      "id": "medallion-1",
+      "label": "Medallion (unlocked)",
+      "context": "ui",
+      "status": "done",
+      "notes": "Sanitized — artifacts removed.",
+      "lastSavedAt": "2026-09-02T04:47:30.371Z"
+    },
+    {
+      "id": "medallion-lock",
+      "label": "Medallion (locked)",
+      "context": "ui",
+      "status": "done",
+      "notes": "Sanitized — artifacts removed.",
+      "lastSavedAt": "2026-09-02T04:47:30.371Z"
+    },
+    {
+      "id": "pill-gold",
+      "label": "Gold pill texture",
+      "context": "ui",
+      "status": "done",
+      "notes": "Sanitized — artifacts removed.",
+      "lastSavedAt": "2026-09-02T04:47:30.371Z"
+    },
+    {
+      "id": "bar-green",
+      "label": "Green progress bar",
+      "context": "ui",
+      "status": "done",
+      "notes": "Sanitized — artifacts removed.",
+      "lastSavedAt": "2026-09-02T04:47:30.371Z"
+    },
+    {
+      "id": "bar-blue",
+      "label": "Blue progress bar",
+      "context": "ui",
+      "status": "done",
+      "notes": "Sanitized — artifacts removed.",
+      "lastSavedAt": "2026-09-02T04:47:30.371Z"
+    },
+    {
+      "id": "bar-stars",
+      "label": "Stars progress bar",
+      "context": "ui",
+      "status": "done",
+      "notes": "Sanitized — artifacts removed.",
+      "lastSavedAt": "2026-09-02T04:47:30.371Z"
+    },
+    {
+      "id": "fx-sparkle",
+      "label": "Sparkle FX",
+      "context": "fx",
+      "status": "done",
+      "notes": "Sanitized — artifacts removed.",
+      "lastSavedAt": "2026-09-02T04:47:30.371Z"
+    },
+    {
+      "id": "fx-petal",
+      "label": "Petal FX",
+      "context": "fx",
+      "status": "done",
+      "notes": "Sanitized — artifacts removed.",
+      "lastSavedAt": "2026-09-02T04:47:30.371Z"
+    },
+    {
+      "id": "fx-burst",
+      "label": "Burst FX",
+      "context": "fx",
+      "status": "done",
+      "notes": "Sanitized — artifacts removed.",
+      "lastSavedAt": "2026-09-02T04:47:30.371Z"
+    },
+    {
+      "id": "fx-firework",
+      "label": "Firework FX",
+      "context": "fx",
+      "status": "done",
+      "notes": "Sanitized — artifacts removed.",
+      "lastSavedAt": "2026-09-02T04:47:30.371Z"
+    },
+    {
+      "id": "fx-rainbow",
+      "label": "Rainbow prism FX",
+      "context": "fx",
+      "status": "done",
+      "notes": "Sanitized — artifacts removed.",
+      "lastSavedAt": "2026-09-02T04:47:30.371Z"
+    },
+    {
+      "id": "heart-pink",
+      "label": "Pink heart",
+      "context": "fx",
+      "status": "done",
+      "notes": "Sanitized — artifacts removed.",
+      "lastSavedAt": "2026-09-02T04:47:30.371Z"
+    },
+    {
+      "id": "heart-purple",
+      "label": "Purple heart",
+      "context": "fx",
+      "status": "done",
+      "notes": "Sanitized — artifacts removed.",
+      "lastSavedAt": "2026-09-02T04:47:30.371Z"
+    },
+    {
+      "id": "star-sparkle",
+      "label": "Star sparkle icon",
+      "context": "ui",
+      "status": "done",
+      "notes": "Sanitized — artifacts removed.",
+      "lastSavedAt": "2026-09-02T04:47:30.371Z"
+    }
+  ]
+}

@@ -3,7 +3,7 @@
 import * as React from 'react'
 import { cn } from '@/lib/utils'
 import { A, TILE_IMG } from '@/lib/game/assets'
-import { TILE_META, stageTitle, chapterOf } from '@/lib/game/levels'
+import { TILE_META, stageTitle, playBgForLevel, chapterBackdropTint, chapterOf } from '@/lib/game/levels'
 import {
   applyClear,
   applyGravity,
@@ -31,8 +31,9 @@ import type {
 } from '@/lib/game/types'
 import { initAudio, sfx } from '@/lib/game/sound'
 import { discover, LUMEN_ID_BY_TYPE } from '@/lib/game/codex'
+import { SCORE_GOAL_HINT, scoreGoalLabel, scoreObjectiveTarget, starRatingProgress } from '@/lib/game/objectives'
 import { useVibrate } from './settings'
-import { CountUp, IconButton, ProgressBar, RibbonBanner } from './ui'
+import { BoardTileIcon, CountUp, HudStat, IconButton, ProgressBar, RibbonBanner, SceneBackdrop, ScoreGoalIcon, StarIcon } from './ui'
 import { FolioSealedModal, FolioLostModal, PauseModal } from './modals'
 
 const sleep = (ms: number) => new Promise<void>((res) => setTimeout(res, ms))
@@ -50,6 +51,9 @@ export interface RewardSummary {
   streak?: number
   /** false when this seal merely replayed a mastered stage (consolation rewards) */
   improved?: boolean
+  discoveries?: string[]
+  chapterSealed?: boolean
+  chapterId?: number
 }
 
 interface Floater {
@@ -170,7 +174,8 @@ export function PlayScreen({
   const boardRef = React.useRef<HTMLDivElement>(null)
   const [size, setSize] = React.useState({ w: 0, h: 0 })
 
-  /* ------- board sizing ------- */
+  /* ------- board sizing — fill the column; frame chrome is included in the box ------- */
+  const FRAME_PAD = 6
   React.useEffect(() => {
     const el = wrapRef.current
     if (!el) return
@@ -178,9 +183,14 @@ export function PlayScreen({
       const cs = getComputedStyle(el)
       const availW = el.clientWidth - parseFloat(cs.paddingLeft || '0') - parseFloat(cs.paddingRight || '0')
       const availH = el.clientHeight - parseFloat(cs.paddingTop || '0') - parseFloat(cs.paddingBottom || '0')
-      // frame adds 2*3px border + 2*5px padding = 16px; keep a 4px slack
-      const target = Math.max(120, Math.min(availW - 20, (availH - 20) * (level.cols / level.rows)))
-      setSize({ w: target, h: (target * level.rows) / level.cols })
+      const frameChrome = FRAME_PAD * 2
+      const maxInnerW = Math.max(100, availW - frameChrome)
+      const maxInnerH = Math.max(100, availH - frameChrome)
+      // fit the largest board that still fits both axes (no leftover side gutters when height allows)
+      const byWidth = maxInnerW
+      const byHeight = maxInnerH * (level.cols / level.rows)
+      const inner = Math.max(100, Math.min(byWidth, byHeight))
+      setSize({ w: inner, h: (inner * level.rows) / level.cols })
     }
     measure()
     const ro = new ResizeObserver(measure)
@@ -210,8 +220,6 @@ export function PlayScreen({
   React.useEffect(() => {
     initAudio()
     discover('entity:lantern')
-    // lore follows the 12 core themes so echo chapters still unlock them
-    if (level.chapter > 0) discover(`lore:${(((level.chapter - 1) % 12) + 1)}`)
     clearSpawnedNextFrame()
     const t = setTimeout(() => lock(false), 460)
     return () => clearTimeout(t)
@@ -274,13 +282,15 @@ export function PlayScreen({
       setResult(res)
       if (won) {
         sfx.win()
+        vibrate(42)
         for (let i = 0; i < stars; i++) setTimeout(() => sfx.star(i), 500 + i * 380)
         setRewards(onWin(res))
       } else {
         sfx.lose()
+        vibrate(28)
       }
     },
-    [level, onWin],
+    [level, onWin, vibrate],
   )
 
   const checkObjective = React.useCallback((): boolean => {
@@ -445,7 +455,7 @@ export function PlayScreen({
       return
     }
     if (!hasAnyMove(cloneGrid(gridRef.current))) {
-      showToast('The loom is stuck — reshuffling threads…')
+      showToast('The loom is stuck — reshuffling the board…')
       sfx.shuffle()
       const ng = shuffleGrid(cloneGrid(gridRef.current), level.types)
       setGridBoth(ng)
@@ -554,7 +564,7 @@ export function PlayScreen({
         sfx.lens()
         const moves = findAllMoves(cloneGrid(gridRef.current))
         if (moves.length === 0) {
-          showToast('No threads available — the loom reshuffles…')
+          showToast('No valid moves — the loom reshuffles…')
           const ng = shuffleGrid(cloneGrid(gridRef.current), level.types)
           setGridBoth(ng)
           return
@@ -733,8 +743,10 @@ export function PlayScreen({
 
   /* ------- render ------- */
   const obj = level.objective
-  const bgKey = level.chapter > 0 ? chapterOf(level.id).bg : 'bg-altar'
+  const starProgress = starRatingProgress(level, score, collected)
+  const bgKey = playBgForLevel(level.id)
   const stageLabel = isDaily ? 'DAILY PAGE' : `STAGE ${stageTitle(level)}`
+  const ch = chapterOf(level.id)
 
   /* static cell sockets — rebuilt only when the board size changes, not on every state change */
   const sockets = React.useMemo(
@@ -764,64 +776,70 @@ export function PlayScreen({
   )
 
   return (
-    <div className="relative flex-1 flex flex-col overflow-hidden ww-tap-none">
-      {/* backdrop */}
-      <div aria-hidden className="absolute inset-0">
-        <img src={A(bgKey)} alt="" className="w-full h-full object-cover" draggable={false} />
-        <div className="absolute inset-0 bg-gradient-to-b from-[#0e1c14]/45 via-[#0e1c14]/20 to-[#0e1c14]/55" />
-      </div>
+    <div className="play-screen relative flex-1 flex flex-col overflow-hidden ww-tap-none">
+      <SceneBackdrop
+        src={A(bgKey)}
+        tint={chapterBackdropTint(bgKey)}
+        overlayClassName="bg-gradient-to-b from-[#0e1c14]/45 via-[#0e1c14]/20 to-[#0e1c14]/55"
+      />
 
+      <div className="play-screen-inner">
       {/* HUD — ribbon row */}
-      <header className="relative z-20 flex items-start gap-2 px-3 pt-3">
-        <IconButton
-          img={A('icon-pause')}
-          label="Pause"
-          className="mt-1.5"
-          onClick={() => {
-            discover('entity:rest')
-            pausedRef.current = true
-            setPaused(true)
-          }}
-        />
-        <div className="flex-1 min-w-0 flex justify-center">
-          <RibbonBanner title={stageLabel} subtitle={level.name} size="sm" className="w-full max-w-[300px]" />
+      <header className="play-hud-header relative z-20 ww-gutter-x ww-gutter-t">
+        <div className="play-hud-header-row">
+          <IconButton
+            img={A('icon-pause')}
+            label="Pause"
+            className="shrink-0"
+            onClick={() => {
+              discover('entity:rest')
+              pausedRef.current = true
+              setPaused(true)
+            }}
+          />
+          <RibbonBanner
+            title={stageLabel}
+            subtitle={isDaily ? 'Daily Folio' : `Chapter ${ch.numeral}`}
+            size="sm"
+            fluid
+            className="play-hud-ribbon min-w-0"
+          />
+          <HudStat
+            label="Moves"
+            value={movesLeft}
+            aria-label={`${movesLeft} moves left`}
+            valueClassName={cn(movesLeft <= 3 && 'text-[#ff9d7a] animate-pulse')}
+          />
         </div>
-        <div
-          className="hud-pill rounded-2xl px-3 py-1 flex flex-col items-center leading-none mt-0.5 min-w-[64px]"
-          aria-label={`${movesLeft} moves left`}
-        >
-          <span className="text-[9px] uppercase tracking-widest text-[#d9c79a] font-bold">Moves</span>
-          <span
-            className={cn(
-              'font-display text-xl font-extrabold tabular-nums',
-              movesLeft <= 3 && 'text-[#ff9d7a] animate-pulse',
-            )}
-          >
-            {movesLeft}
-          </span>
-        </div>
+
+        {/* poetic chapter hint — chapter title + tagline */}
+        {!isDaily && level.name ? (
+          <p className="play-hud-hint relative z-20 text-[#f4e9c8]/90 line-clamp-2">
+            <span className="font-semibold not-italic text-[#ffe9a8]/95">{level.name}</span>
+            {level.hint ? <span className="opacity-90"> — {level.hint}</span> : null}
+          </p>
+        ) : level.hint ? (
+          <p className="play-hud-hint relative z-20 text-[#f4e9c8]/85 line-clamp-2">{level.hint}</p>
+        ) : null}
       </header>
 
       {/* goals + score */}
-      <section className="relative z-20 px-3 mt-2 flex items-stretch gap-2" aria-label="Score and objectives">
+      <section className="relative z-20 ww-gutter-x mt-1.5 flex items-stretch gap-2" aria-label="Score and objectives">
         <div className="goal-card flex-1 min-w-0 px-2.5 py-1.5 flex flex-wrap items-center gap-x-3 gap-y-1">
           {obj.kind === 'collect'
             ? (obj.collect ?? []).map((goal) => {
                 const have = Math.min(collected[goal.type] ?? 0, goal.count)
                 const done = have >= goal.count
                 return (
-                  <div key={goal.type} className="flex items-center gap-1.5 min-w-[118px] flex-1">
-                    <img
-                      src={TILE_IMG[goal.type]}
-                      alt={TILE_META[goal.type].name}
-                      className="w-8 h-8 object-contain drop-shadow shrink-0"
-                      draggable={false}
-                    />
+                  <div key={goal.type} className="flex items-center gap-2 min-w-[118px] flex-1">
+                    <BoardTileIcon type={goal.type} size="goal" />
                     <div className="min-w-0 flex-1">
                       <p className="text-[10px] leading-tight text-[#5d3a1a] font-bold truncate">
-                        {done ? '✓ ' : 'Collect '}
-                        {goal.count} {TILE_META[goal.type].name}
-                        {goal.count > 1 ? '' : ''}
+                        {done ? '✓ ' : ''}
+                        Collect {goal.count}× {TILE_META[goal.type].name}
+                      </p>
+                      <p className="text-[9px] leading-tight text-[#7a5c34] font-semibold truncate">
+                        Match this charm on the board
                       </p>
                       <ProgressBar value={have / goal.count} className="h-2 mt-0.5" />
                       <p className={cn('text-[9px] font-bold tabular-nums', done ? 'text-[#4c8a28]' : 'text-[#7a5c34]')}>
@@ -832,16 +850,18 @@ export function PlayScreen({
                 )
               })
             : (() => {
-                const target = obj.score ?? level.star3
+                const target = scoreObjectiveTarget(level)
                 const have = Math.min(score, target)
                 const done = score >= target
                 return (
-                  <div className="flex items-center gap-1.5 flex-1 min-w-[118px]">
-                    <img src={A('star-sparkle')} alt="" className="w-8 h-8 object-contain drop-shadow shrink-0" draggable={false} />
+                  <div className="flex items-center gap-2 flex-1 min-w-[118px]">
+                    <ScoreGoalIcon />
                     <div className="min-w-0 flex-1">
                       <p className="text-[10px] leading-tight text-[#5d3a1a] font-bold truncate">
-                        {done ? '✓ ' : ''}Weave {target.toLocaleString()} threads
+                        {done ? '✓ ' : ''}
+                        {scoreGoalLabel(target)}
                       </p>
+                      <p className="text-[9px] leading-tight text-[#7a5c34] font-semibold truncate">{SCORE_GOAL_HINT}</p>
                       <ProgressBar value={have / target} className="h-2 mt-0.5" />
                       <p className={cn('text-[9px] font-bold tabular-nums', done ? 'text-[#4c8a28]' : 'text-[#7a5c34]')}>
                         {have.toLocaleString()} / {target.toLocaleString()}
@@ -851,40 +871,40 @@ export function PlayScreen({
                 )
               })()}
         </div>
-        <div className="hud-pill rounded-2xl px-3 py-1 flex flex-col items-center justify-center min-w-[92px]" aria-live="polite">
-          <span className="text-[9px] uppercase tracking-widest text-[#d9c79a] font-bold">Score</span>
-          <CountUp value={score} duration={500} className="font-display text-lg font-extrabold" />
-          <div className="flex gap-0.5 mt-0.5" aria-hidden>
-            {[0, 1, 2].map((i) => (
-              <img
-                key={i}
-                src={A('star-sparkle')}
-                alt=""
-                draggable={false}
-                className={cn('w-3 h-3 object-contain', i === 0 ? (score > 0 ? '' : 'grayscale opacity-40') : score >= (i === 1 ? level.star2 : level.star3) ? '' : 'grayscale opacity-40')}
-              />
+        <div className="hud-pill hud-stat hud-stat-score rounded-2xl" aria-live="polite" aria-label={`Score: ${score}`}>
+          <span className="hud-stat-label">Score</span>
+          <CountUp value={score} duration={500} className="hud-stat-value font-display" />
+          <div
+            className="hud-stat-stars flex gap-0.5"
+            role="img"
+            aria-label={`Star rating: ${starProgress.filter(Boolean).length} of 3`}
+          >
+            {starProgress.map((lit, i) => (
+              <StarIcon key={i} size={11} lit={lit} empty="bright" />
             ))}
           </div>
         </div>
       </section>
 
-      {/* board */}
-      <main ref={wrapRef} className="relative z-10 flex-1 min-h-0 flex items-center justify-center px-3 py-2">
+      {/* board — nearly edge-to-edge; sizing fills available width/height */}
+      <main ref={wrapRef} className="play-board-wrap relative z-10 flex-1 min-h-0 flex items-center justify-center">
         <div
-          className={cn('board-frame', shakeId > 0 && 'anim-board-shake')}
-          style={{ width: size.w + 12, height: size.h + 12, padding: 5, opacity: size.w > 0 ? 1 : 0 }}
+          className={cn('board-frame play-board-frame', shakeId > 0 && 'anim-board-shake')}
+          style={{
+            width: size.w + FRAME_PAD * 2,
+            height: size.h + FRAME_PAD * 2,
+            padding: FRAME_PAD,
+            opacity: size.w > 0 ? 1 : 0,
+          }}
         >
           <div
             ref={boardRef}
             role="application"
             aria-label={`${level.rows} by ${level.cols} weaving board. Drag or tap charms to swap.`}
             className={cn(
-              'relative w-full h-full rounded-[0.7rem] overflow-hidden touch-none select-none',
+              'relative w-full h-full rounded-sm overflow-hidden touch-none select-none board-surface',
               armedBooster === 'null' && 'cursor-crosshair',
             )}
-            style={{
-              backgroundImage: 'linear-gradient(180deg, #1c2e1f 0%, #16251a 100%)',
-            }}
             onPointerDown={onPointerDown}
             onPointerMove={onPointerMove}
             onPointerUp={onPointerUp}
@@ -937,7 +957,9 @@ export function PlayScreen({
             {/* objective complete flash */}
             {goalFlash && (
               <div key={goalFlash.id} className="absolute inset-0 z-40 flex items-center justify-center pointer-events-none">
-                <img src={A('banner-objective')} alt="Objective complete!" draggable={false} className="anim-combo w-48 drop-shadow-2xl" />
+                <span className="anim-combo objective-banner font-display font-black text-2xl px-6 py-2 rounded-full">
+                  Objective complete!
+                </span>
               </div>
             )}
 
@@ -952,7 +974,7 @@ export function PlayScreen({
       </main>
 
       {/* boosters */}
-      <footer className="relative z-20 px-4 pb-2 pt-0.5 flex items-center justify-between gap-3">
+      <footer className="relative z-20 ww-gutter-x ww-gutter-b pt-1 flex items-center justify-between gap-3">
         <BoosterButton
           kind="lens"
           count={inventory.lens}
@@ -969,6 +991,7 @@ export function PlayScreen({
           onClick={() => armBooster('null')}
         />
       </footer>
+      </div>
 
       {/* modals */}
       {paused && status === 'playing' && (
@@ -1027,33 +1050,33 @@ function BoosterButton({
   disabled?: boolean
   onClick: () => void
 }) {
-  const label = kind === 'lens' ? 'Lens' : 'Null'
+  const label = kind === 'lens' ? 'Lens' : 'Unweave'
   return (
-    <button
-      type="button"
-      aria-label={`${label} booster — ${count} remaining${kind === 'lens' ? '. Instantly weaves one thread without spending a move.' : '. Unweaves any single charm without spending a move.'}`}
-      disabled={disabled || count <= 0}
-      onClick={onClick}
-      className={cn('booster-btn w-[54px] h-[54px] shrink-0', armed && 'booster-armed')}
-    >
-      {kind === 'lens' ? (
-        <svg viewBox="0 0 24 24" className="w-6 h-6" fill="none" stroke="#5d3a1a" strokeWidth="2.4" strokeLinecap="round" aria-hidden>
-          <circle cx="10.5" cy="10.5" r="6.2" />
-          <path d="m15.3 15.3 5 5" />
-        </svg>
-      ) : (
-        <svg viewBox="0 0 24 24" className="w-6 h-6" fill="none" stroke="#5d3a1a" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-          <path d="M14.5 4.5 19 9l-2.5 2.5L12 7l2.5-2.5ZM12 7 5 14v5h5l7-7" />
-          <path d="m13 12 5-5" />
-        </svg>
-      )}
-      <span className="text-[8px] font-display font-extrabold uppercase tracking-widest text-[#5d3a1a] leading-none">
-        {label}
-      </span>
-      <span className="booster-count" aria-hidden>
-        {count}
-      </span>
-    </button>
+    <div className="booster-wrap">
+      <button
+        type="button"
+        aria-label={`${label} booster — ${count} remaining${kind === 'lens' ? '. Finds one valid match without spending a move.' : '. Removes any single charm without spending a move.'}`}
+        disabled={disabled || count <= 0}
+        onClick={onClick}
+        className={cn('booster-btn w-12 h-12 shrink-0', armed && 'booster-armed')}
+      >
+        {kind === 'lens' ? (
+          <svg viewBox="0 0 24 24" className="w-6 h-6" fill="none" stroke="#5d3a1a" strokeWidth="2.4" strokeLinecap="round" aria-hidden>
+            <circle cx="10.5" cy="10.5" r="6.2" />
+            <path d="m15.3 15.3 5 5" />
+          </svg>
+        ) : (
+          <svg viewBox="0 0 24 24" className="w-6 h-6" fill="none" stroke="#5d3a1a" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+            <path d="M14.5 4.5 19 9l-2.5 2.5L12 7l2.5-2.5ZM12 7 5 14v5h5l7-7" />
+            <path d="m13 12 5-5" />
+          </svg>
+        )}
+        <span className="booster-count" aria-hidden>
+          {count}
+        </span>
+      </button>
+      <span className="booster-label">{label}</span>
+    </div>
   )
 }
 
@@ -1109,7 +1132,7 @@ const TileView = React.memo(function TileView({
           hinted && !selected && 'anim-wiggle',
           specialClass,
         )}
-        style={{ borderRadius: '26%' }}
+        style={{ borderRadius: '12%' }}
       >
         <img
           src={tile.special === 'prism' ? A('fx-rainbow') : TILE_IMG[tile.type]}

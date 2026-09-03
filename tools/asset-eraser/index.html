@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Wonderweave Asset Eraser</title>
+  <style>
+    :root {
+      --bg: #121816;
+      --panel: #1c2420;
+      --panel2: #252f29;
+      --line: #3a4a40;
+      --text: #e8f0ea;
+      --muted: #9ab0a2;
+      --accent: #6ecf8f;
+      --warn: #f0b45a;
+      --danger: #e06a5c;
+      --done: #5ec98a;
+      --pending: #f0b45a;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font: 14px/1.45 system-ui,Segoe UI,sans-serif; }
+    button, input, select { font: inherit; }
+    button {
+      border: 1px solid var(--line);
+      background: var(--panel2);
+      color: var(--text);
+      border-radius: 8px;
+      padding: 0.45rem 0.75rem;
+      cursor: pointer;
+    }
+    button:hover { filter: brightness(1.08); }
+    button.primary { background: #2f6f4a; border-color: #3f8f5f; font-weight: 700; }
+    button.danger { background: #5a2a24; border-color: #8a3f36; }
+    button.active { outline: 2px solid var(--accent); }
+    .app { display: grid; grid-template-columns: 280px 1fr 300px; height: 100vh; }
+    .sidebar, .inspector {
+      background: var(--panel);
+      border-right: 1px solid var(--line);
+      overflow: auto;
+    }
+    .inspector { border-right: none; border-left: 1px solid var(--line); }
+    .sidebar h1, .inspector h2 {
+      margin: 0;
+      padding: 1rem;
+      font-size: 0.95rem;
+      border-bottom: 1px solid var(--line);
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    .sidebar .summary {
+      padding: 0.65rem 1rem 0.25rem;
+      font-size: 0.8rem;
+      color: var(--muted);
+      border-bottom: 1px solid var(--line);
+      line-height: 1.5;
+    }
+    .queue-group {
+      margin: 0.5rem 0 0.25rem;
+      padding: 0.35rem 0.75rem 0.15rem;
+      font-size: 0.68rem;
+      font-weight: 800;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--accent);
+    }
+    .queue li button {
+      width: 100%;
+      text-align: left;
+      margin-bottom: 0.35rem;
+      display: grid;
+      gap: 0.15rem;
+      padding: 0.6rem 0.7rem;
+    }
+    .queue .name { font-weight: 700; }
+    .queue .meta { font-size: 0.78rem; color: var(--muted); }
+    .badge {
+      display: inline-block;
+      font-size: 0.68rem;
+      font-weight: 800;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      padding: 0.1rem 0.35rem;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+    }
+    .badge.pending { color: var(--pending); }
+    .badge.done { color: var(--done); }
+    .workspace {
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      min-width: 0;
+      min-height: 0;
+    }
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      align-items: center;
+      padding: 0.65rem 0.8rem;
+      border-bottom: 1px solid var(--line);
+      background: var(--panel);
+    }
+    .toolbar label { display: inline-flex; align-items: center; gap: 0.35rem; color: var(--muted); font-size: 0.85rem; }
+    .toolbar input[type="range"] { width: 110px; }
+    .canvas-wrap {
+      position: relative;
+      overflow: auto;
+      background:
+        linear-gradient(45deg, #2a332e 25%, transparent 25%),
+        linear-gradient(-45deg, #2a332e 25%, transparent 25%),
+        linear-gradient(45deg, transparent 75%, #2a332e 75%),
+        linear-gradient(-45deg, transparent 75%, #2a332e 75%);
+      background-size: 24px 24px;
+      background-position: 0 0, 0 12px, 12px -12px, -12px 0;
+      background-color: #1a211d;
+    }
+    canvas#main {
+      display: block;
+      margin: 1rem auto;
+      image-rendering: pixelated;
+      cursor: crosshair;
+      box-shadow: 0 12px 40px rgba(0,0,0,0.45);
+    }
+    .statusbar {
+      padding: 0.55rem 0.8rem;
+      border-top: 1px solid var(--line);
+      background: var(--panel);
+      color: var(--muted);
+      font-size: 0.82rem;
+      display: flex;
+      justify-content: space-between;
+      gap: 1rem;
+    }
+    .inspector section { padding: 0.85rem 1rem; border-bottom: 1px solid var(--line); }
+    .inspector p { margin: 0.35rem 0 0; color: var(--muted); font-size: 0.86rem; }
+    .preview-dialog {
+      background: linear-gradient(160deg, #f9efd4, #e7d09c);
+      border: 3px solid #7c4a1e;
+      border-radius: 1rem;
+      min-height: 180px;
+      position: relative;
+      overflow: hidden;
+      box-shadow: inset 0 0 0 3px rgba(255,252,240,0.7);
+    }
+    .preview-dialog .body { padding: 1rem 1rem 2.5rem; color: #5d3a1a; font-size: 0.85rem; }
+    .preview-dialog .deco {
+      position: absolute;
+      bottom: -0.35rem;
+      width: 4.2rem;
+      pointer-events: none;
+    }
+    .preview-dialog .deco.left { left: -0.1rem; }
+    .preview-dialog .deco.right { right: -0.1rem; }
+    .preview-backdrop {
+      margin-top: 0.75rem;
+      height: 120px;
+      border-radius: 0.5rem;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      position: relative;
+      background: #0e1c14;
+    }
+    .preview-backdrop img { width: 100%; height: 100%; object-fit: cover; }
+    .kbd { font-family: ui-monospace, monospace; font-size: 0.75rem; background: #111714; border: 1px solid var(--line); padding: 0.05rem 0.3rem; border-radius: 4px; }
+    .flash { animation: flash 0.8s ease; }
+    @keyframes flash { 0% { background: #2f6f4a; } 100% { background: var(--panel2); } }
+    .empty { padding: 2rem; text-align: center; color: var(--muted); }
+    @media (max-width: 1100px) {
+      .app { grid-template-columns: 240px 1fr; }
+      .inspector { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <h1>In-game assets</h1>
+      <p class="summary" id="queueSummary">Loading from ALL_ASSETS…</p>
+      <div id="queue"></div>
+    </aside>
+
+    <main class="workspace">
+      <div class="toolbar" id="toolbar">
+        <button type="button" data-tool="erase" class="active" title="Erase to transparency (E)">Erase</button>
+        <button type="button" data-tool="restore" title="Paint back from original (R)">Restore</button>
+        <button type="button" data-tool="pan" title="Pan view (Space)">Pan</button>
+        <label>Brush <input id="brush" type="range" min="2" max="120" value="18" /></label>
+        <label>Zoom <input id="zoom" type="range" min="50" max="400" value="100" /></label>
+        <button type="button" id="undo">Undo</button>
+        <button type="button" id="reset">Reset view</button>
+        <button type="button" id="revert" class="danger">Revert to backup</button>
+        <button type="button" id="save" class="primary">Save .webp → project</button>
+      </div>
+
+      <div class="canvas-wrap" id="canvasWrap">
+        <div class="empty" id="placeholder">Pick an asset from the queue to start cleaning.</div>
+        <canvas id="main" hidden></canvas>
+      </div>
+
+      <div class="statusbar">
+        <span id="statusLeft">Ready.</span>
+        <span id="statusRight"></span>
+      </div>
+    </main>
+
+    <aside class="inspector">
+      <h2>Inspector</h2>
+      <section>
+        <strong id="assetTitle">—</strong>
+        <p id="assetNotes"></p>
+      </section>
+      <section>
+        <strong>Live preview</strong>
+        <div class="preview-dialog" id="dialogPreview" hidden>
+          <div class="body">Dialog corner preview — artifacts should be gone against parchment.</div>
+          <img class="deco left" id="previewLeft" alt="" />
+          <img class="deco right" id="previewRight" alt="" />
+        </div>
+        <div class="preview-backdrop" id="backdropPreview" hidden>
+          <img id="previewBackdrop" alt="" style="object-fit:cover;width:100%;height:100%" />
+        </div>
+        <p id="previewHint">Select an asset to see how it sits in-game.</p>
+      </section>
+      <section>
+        <strong>Shortcuts</strong>
+        <p>
+          <span class="kbd">E</span> erase ·
+          <span class="kbd">R</span> restore ·
+          <span class="kbd">Space</span> pan ·
+          <span class="kbd">Ctrl+Z</span> undo ·
+          <span class="kbd">Ctrl+S</span> save
+        </p>
+      </section>
+    </aside>
+  </div>
+
+  <script>
+    const $ = (sel) => document.querySelector(sel)
+    const queueEl = $('#queue')
+    const canvas = $('#main')
+    const ctx = canvas.getContext('2d', { willReadFrequently: true })
+    const placeholder = $('#placeholder')
+    const statusLeft = $('#statusLeft')
+    const statusRight = $('#statusRight')
+
+    let manifest = null
+    let currentId = null
+    let originalImage = null
+    let tool = 'erase'
+    let painting = false
+    let panning = false
+    let spaceDown = false
+    let paintLastX = 0
+    let paintLastY = 0
+    let panX = 0
+    let panY = 0
+    let zoom = 1
+    const undoStack = []
+    const MAX_UNDO = 30
+
+    async function api(path, opts = {}) {
+      const res = await fetch(path, opts)
+      if (!res.ok) throw new Error(await res.text())
+      const type = res.headers.get('content-type') || ''
+      if (type.includes('application/json')) return res.json()
+      return res
+    }
+
+    function setStatus(left, right = '') {
+      statusLeft.textContent = left
+      statusRight.textContent = right
+    }
+
+    const CATEGORY_LABELS = {
+      chrome: 'Chrome & icons',
+      tiles: 'Match tiles',
+      bunnies: 'Bunny characters',
+      backgrounds: 'Chapter backdrops',
+      decor: 'Decor & landmarks',
+      fx: 'Particles & FX',
+      ui: 'Board & banners',
+    }
+
+    function renderQueue() {
+      const root = $('#queue')
+      root.innerHTML = ''
+      const done = manifest.queue.filter((q) => q.status === 'done').length
+      $('#queueSummary').textContent =
+        `${manifest.total} used in Wonderweave · ${done} done · ${manifest.total - done} pending · synced from ALL_ASSETS`
+
+      let lastCtx = ''
+      for (const item of manifest.queue) {
+        if (item.context !== lastCtx) {
+          lastCtx = item.context
+          const h = document.createElement('div')
+          h.className = 'queue-group'
+          h.textContent = CATEGORY_LABELS[item.context] || item.context
+          root.appendChild(h)
+        }
+        const btn = document.createElement('button')
+        btn.type = 'button'
+        btn.className = 'queue-item'
+        btn.style.cssText = 'width:100%;text-align:left;margin:0 0.5rem 0.35rem;display:grid;gap:0.15rem;padding:0.6rem 0.7rem;border:1px solid var(--line);background:var(--panel2);color:var(--text);border-radius:8px;cursor:pointer'
+        btn.innerHTML = `
+          <span class="name">${item.label}</span>
+          <span class="meta">${item.id}.webp</span>
+          <span class="badge ${item.status}">${item.status}</span>
+        `
+        if (item.id === currentId) btn.classList.add('active')
+        btn.addEventListener('click', () => loadAsset(item.id))
+        root.appendChild(btn)
+      }
+    }
+
+    function pushUndo() {
+      undoStack.push(ctx.getImageData(0, 0, canvas.width, canvas.height))
+      if (undoStack.length > MAX_UNDO) undoStack.shift()
+    }
+
+    function undo() {
+      const snap = undoStack.pop()
+      if (!snap) return
+      ctx.putImageData(snap, 0, 0)
+      refreshPreview()
+      setStatus('Undid last stroke.')
+    }
+
+    function applyView() {
+      canvas.style.transform = `translate(${panX}px, ${panY}px) scale(${zoom})`
+      canvas.style.transformOrigin = 'center top'
+    }
+
+    function canvasPoint(evt) {
+      const rect = canvas.getBoundingClientRect()
+      const x = (evt.clientX - rect.left) / zoom
+      const y = (evt.clientY - rect.top) / zoom
+      return { x, y }
+    }
+
+    function stamp(x, y) {
+      const size = Number($('#brush').value)
+      const r = size / 2
+      if (tool === 'erase') {
+        ctx.save()
+        ctx.globalCompositeOperation = 'destination-out'
+        ctx.beginPath()
+        ctx.arc(x, y, r, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.restore()
+      } else if (tool === 'restore' && originalImage) {
+        ctx.save()
+        ctx.beginPath()
+        ctx.arc(x, y, r, 0, Math.PI * 2)
+        ctx.clip()
+        ctx.drawImage(originalImage, 0, 0)
+        ctx.restore()
+      }
+    }
+
+    function lineTo(x0, y0, x1, y1) {
+      const dist = Math.hypot(x1 - x0, y1 - y0)
+      const step = Math.max(1, Number($('#brush').value) / 4)
+      for (let d = 0; d <= dist; d += step) {
+        const t = dist === 0 ? 0 : d / dist
+        stamp(x0 + (x1 - x0) * t, y0 + (y1 - y0) * t)
+      }
+    }
+
+    function refreshPreview() {
+      const dataUrl = canvas.toDataURL('image/webp', 0.95)
+      const dialogPreview = $('#dialogPreview')
+      const backdropPreview = $('#backdropPreview')
+      const previewHint = $('#previewHint')
+      if (!currentId) return
+
+      const item = manifest.queue.find((q) => q.id === currentId)
+      if (item?.id === 'deco-mushrooms' || item?.id === 'deco-flowers') {
+        dialogPreview.hidden = false
+        backdropPreview.hidden = true
+        previewHint.hidden = true
+        if (currentId.includes('mushroom')) {
+          $('#previewLeft').src = dataUrl
+          $('#previewRight').src = '/api/asset/deco-flowers?' + Date.now()
+        } else {
+          $('#previewRight').src = dataUrl
+          $('#previewLeft').src = '/api/asset/deco-mushrooms?' + Date.now()
+        }
+      } else if (item?.context === 'backgrounds') {
+        dialogPreview.hidden = true
+        backdropPreview.hidden = false
+        previewHint.hidden = true
+        $('#previewBackdrop').src = dataUrl
+      } else {
+        dialogPreview.hidden = true
+        backdropPreview.hidden = true
+        previewHint.hidden = false
+      }
+    }
+
+    async function loadAsset(id) {
+      currentId = id
+      const item = manifest.queue.find((q) => q.id === id)
+      $('#assetTitle').textContent = item.label
+      $('#assetNotes').textContent = item.notes || ''
+      renderQueue()
+
+      const blob = await (await api(`/api/asset/${id}`)).blob()
+      const url = URL.createObjectURL(blob)
+      const img = new Image()
+      img.onload = () => {
+        URL.revokeObjectURL(url)
+        originalImage = img
+        canvas.width = img.width
+        canvas.height = img.height
+        canvas.hidden = false
+        placeholder.hidden = true
+        ctx.clearRect(0, 0, canvas.width, canvas.height)
+        ctx.drawImage(img, 0, 0)
+        undoStack.length = 0
+        panX = 0
+        panY = 0
+        zoom = 1
+        $('#zoom').value = 100
+        applyView()
+        refreshPreview()
+        setStatus(`Loaded ${id}.webp`, `${img.width}×${img.height}px`)
+      }
+      img.src = url
+    }
+
+    async function saveAsset() {
+      if (!currentId) return
+      const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/webp', 0.95))
+      const res = await api(`/api/save/${currentId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'image/webp' },
+        body: blob,
+      })
+      manifest = await api('/api/manifest')
+      renderQueue()
+      $('#save').classList.add('flash')
+      setTimeout(() => $('#save').classList.remove('flash'), 800)
+      setStatus(`Saved ${currentId}.webp to project`, `backup → ${res.backup}`)
+    }
+
+    async function revertAsset() {
+      if (!currentId) return
+      if (!confirm(`Restore ${currentId}.webp from the original backup?`)) return
+      await api('/api/reset-original', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: currentId }),
+      })
+      await loadAsset(currentId)
+      setStatus(`Reverted ${currentId}.webp from backup.`)
+    }
+
+    canvas.addEventListener('pointerdown', (evt) => {
+      if (!currentId) return
+      canvas.setPointerCapture(evt.pointerId)
+      const p = canvasPoint(evt)
+      if (tool === 'pan' || spaceDown) {
+        panning = true
+        paintLastX = evt.clientX
+        paintLastY = evt.clientY
+        return
+      }
+      painting = true
+      pushUndo()
+      paintLastX = p.x
+      paintLastY = p.y
+      stamp(p.x, p.y)
+      refreshPreview()
+    })
+
+    canvas.addEventListener('pointermove', (evt) => {
+      if (!currentId) return
+      if (panning) {
+        panX += evt.clientX - paintLastX
+        panY += evt.clientY - paintLastY
+        paintLastX = evt.clientX
+        paintLastY = evt.clientY
+        applyView()
+        return
+      }
+      if (!painting) return
+      const p = canvasPoint(evt)
+      lineTo(paintLastX, paintLastY, p.x, p.y)
+      paintLastX = p.x
+      paintLastY = p.y
+      refreshPreview()
+    })
+
+    canvas.addEventListener('pointerup', () => {
+      painting = false
+      panning = false
+    })
+
+    $('#brush').addEventListener('input', () => setStatus(`Brush size: ${$('#brush').value}px`))
+    $('#zoom').addEventListener('input', () => {
+      zoom = Number($('#zoom').value) / 100
+      applyView()
+    })
+
+    document.querySelectorAll('[data-tool]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        tool = btn.dataset.tool
+        document.querySelectorAll('[data-tool]').forEach((b) => b.classList.toggle('active', b === btn))
+      })
+    })
+
+    $('#undo').addEventListener('click', undo)
+    $('#save').addEventListener('click', saveAsset)
+    $('#revert').addEventListener('click', revertAsset)
+    $('#reset').addEventListener('click', () => {
+      panX = 0
+      panY = 0
+      zoom = 1
+      $('#zoom').value = 100
+      applyView()
+    })
+
+    window.addEventListener('keydown', (evt) => {
+      if (evt.code === 'Space') { spaceDown = true; evt.preventDefault() }
+      if (evt.ctrlKey && evt.key.toLowerCase() === 'z') { evt.preventDefault(); undo() }
+      if (evt.ctrlKey && evt.key.toLowerCase() === 's') { evt.preventDefault(); saveAsset() }
+      if (evt.key.toLowerCase() === 'e') tool = 'erase'
+      if (evt.key.toLowerCase() === 'r') tool = 'restore'
+      document.querySelectorAll('[data-tool]').forEach((b) => b.classList.toggle('active', b.dataset.tool === tool))
+    })
+    window.addEventListener('keyup', (evt) => {
+      if (evt.code === 'Space') spaceDown = false
+    })
+
+    async function boot() {
+      manifest = await api('/api/manifest')
+      renderQueue()
+      const first = manifest.queue.find((q) => q.status === 'pending') ?? manifest.queue[0]
+      if (first) await loadAsset(first.id)
+    }
+
+    boot().catch((err) => setStatus('Failed to start', String(err)))
+  </script>
+</body>
+</html>

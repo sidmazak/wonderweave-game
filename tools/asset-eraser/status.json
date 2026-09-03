@@ -1,0 +1,204 @@
+{
+  "statuses": {
+    "logo": {
+      "status": "done",
+      "lastSavedAt": "2026-09-02T11:36:52.622Z"
+    },
+    "star-sparkle": {
+      "status": "done",
+      "lastSavedAt": "2026-09-02T11:36:52.622Z"
+    },
+    "icon-gear": {
+      "status": "done",
+      "lastSavedAt": "2026-09-02T11:36:52.622Z"
+    },
+    "icon-back": {
+      "status": "done",
+      "lastSavedAt": "2026-09-02T11:36:52.622Z"
+    },
+    "icon-close": {
+      "status": "done",
+      "lastSavedAt": "2026-09-02T11:36:52.622Z"
+    },
+    "icon-pause": {
+      "status": "done",
+      "lastSavedAt": "2026-09-02T11:36:52.622Z"
+    },
+    "medallion-lock": {
+      "status": "done",
+      "lastSavedAt": "2026-09-02T11:36:52.622Z"
+    },
+    "tile-leaf": {
+      "status": "done",
+      "lastSavedAt": "2026-09-02T11:36:52.622Z"
+    },
+    "tile-drop": {
+      "status": "done",
+      "lastSavedAt": "2026-09-02T11:36:52.622Z"
+    },
+    "tile-flame": {
+      "status": "done",
+      "lastSavedAt": "2026-09-02T11:36:52.622Z"
+    },
+    "tile-star": {
+      "status": "done",
+      "lastSavedAt": "2026-09-02T11:36:52.622Z"
+    },
+    "tile-flower": {
+      "status": "done",
+      "lastSavedAt": "2026-09-02T11:36:52.622Z"
+    },
+    "tile-mushroom": {
+      "status": "done",
+      "lastSavedAt": "2026-09-02T11:36:52.622Z"
+    },
+    "tile-gem": {
+      "status": "done",
+      "lastSavedAt": "2026-09-02T11:36:52.622Z"
+    },
+    "tile-orb": {
+      "status": "done",
+      "lastSavedAt": "2026-09-02T11:36:52.622Z"
+    },
+    "icon-bolt": {
+      "status": "done",
+      "lastSavedAt": "2026-09-02T11:36:52.622Z"
+    },
+    "fx-rainbow": {
+      "status": "done",
+      "lastSavedAt": "2026-09-02T11:36:52.622Z"
+    },
+    "bunny-lantern": {
+      "status": "done",
+      "lastSavedAt": "2026-09-02T11:36:52.622Z"
+    },
+    "bunny-cheer": {
+      "status": "done",
+      "lastSavedAt": "2026-09-02T11:36:52.622Z"
+    },
+    "bunny-wizard": {
+      "status": "done",
+      "lastSavedAt": "2026-09-02T11:36:52.622Z"
+    },
+    "bunny-rest": {
+      "status": "done",
+      "lastSavedAt": "2026-09-02T11:36:52.622Z"
+    },
+    "bunny-heart": {
+      "status": "done",
+      "lastSavedAt": "2026-09-02T11:36:52.622Z"
+    },
+    "bunny-pack": {
+      "status": "done",
+      "lastSavedAt": "2026-09-02T11:36:52.622Z"
+    },
+    "bunny-walk": {
+      "status": "done",
+      "lastSavedAt": "2026-09-02T11:36:52.622Z"
+    },
+    "bg-castle": {
+      "status": "done",
+      "lastSavedAt": "2026-09-02T11:36:52.622Z"
+    },
+    "bg-map": {
+      "status": "done",
+      "lastSavedAt": "2026-09-02T11:36:52.622Z"
+    },
+    "bg-arch": {
+      "status": "done",
+      "lastSavedAt": "2026-09-02T11:36:52.622Z"
+    },
+    "bg-altar": {
+      "status": "done",
+      "lastSavedAt": "2026-09-02T11:36:52.622Z"
+    },
+    "bg-night": {
+      "status": "done",
+      "lastSavedAt": "2026-09-02T11:36:52.622Z"
+    },
+    "bg-forest": {
+      "status": "done",
+      "lastSavedAt": "2026-09-02T11:36:52.622Z"
+    },
+    "bg-ruins": {
+      "status": "done",
+      "lastSavedAt": "2026-09-02T11:36:52.622Z"
+    },
+    "bg-sky": {
+      "status": "done",
+      "lastSavedAt": "2026-09-02T11:36:52.622Z"
+    },
+    "bg-sunset": {
+      "status": "done",
+      "lastSavedAt": "2026-09-02T11:36:52.622Z"
+    },
+    "fx-sparkle": {
+      "status": "done",
+      "lastSavedAt": "2026-09-02T11:36:52.622Z"
+    },
+    "fx-petal": {
+      "status": "done",
+      "lastSavedAt": "2026-09-02T11:36:52.622Z"
+    },
+    "heart-pink": {
+      "status": "done",
+      "lastSavedAt": "2026-09-02T11:36:52.622Z"
+    },
+    "deco-lamp": {
+      "status": "done",
+      "lastSavedAt": "2026-09-02T11:36:52.622Z"
+    },
+    "deco-island": {
+      "status": "done",
+      "lastSavedAt": "2026-09-02T11:36:52.622Z"
+    },
+    "deco-platform": {
+      "status": "done",
+      "lastSavedAt": "2026-09-02T11:36:52.622Z"
+    },
+    "deco-cloud-white": {
+      "status": "done",
+      "lastSavedAt": "2026-09-02T11:36:52.622Z"
+    },
+    "deco-cloud-pink": {
+      "status": "done",
+      "lastSavedAt": "2026-09-02T11:36:52.622Z"
+    },
+    "deco-tree": {
+      "status": "done",
+      "lastSavedAt": "2026-09-02T11:36:52.622Z"
+    },
+    "deco-flowers": {
+      "status": "done",
+      "lastSavedAt": "2026-09-02T11:36:52.622Z"
+    },
+    "deco-arch": {
+      "status": "done",
+      "lastSavedAt": "2026-09-02T11:36:52.622Z"
+    },
+    "deco-butterfly": {
+      "status": "done",
+      "lastSavedAt": "2026-09-02T11:36:52.622Z"
+    },
+    "deco-moon": {
+      "status": "done",
+      "lastSavedAt": "2026-09-02T11:36:52.622Z"
+    },
+    "deco-mushrooms": {
+      "status": "done",
+      "lastSavedAt": "2026-09-02T11:36:52.622Z"
+    },
+    "deco-waterfall": {
+      "status": "done",
+      "lastSavedAt": "2026-09-02T11:36:52.622Z"
+    },
+    "deco-sign": {
+      "status": "done",
+      "lastSavedAt": "2026-09-02T11:36:52.622Z"
+    },
+    "frame-square": {
+      "status": "done",
+      "lastSavedAt": "2026-09-02T11:36:52.622Z"
+    }
+  }
+}

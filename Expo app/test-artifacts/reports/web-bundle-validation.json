@@ -1,0 +1,13 @@
+{
+  "ok": true,
+  "files": 128,
+  "webpAssets": 77,
+  "errors": [],
+  "missing": [],
+  "remote": [
+    "_next\\static\\chunks\\0cz1d0mv5g_q7.js → https://a@b",
+    "_next\\static\\chunks\\0cz1d0mv5g_q7.js → https://тест",
+    "_next\\static\\chunks\\0cz1d0mv5g_q7.js → https://a#б"
+  ],
+  "localhost": []
+}

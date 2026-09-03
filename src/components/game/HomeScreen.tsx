@@ -4,7 +4,8 @@ import * as React from 'react'
 import { Play } from 'lucide-react'
 import { A } from '@/lib/game/assets'
 import { initAudio, sfx } from '@/lib/game/sound'
-import { FallingLeaves, Fireflies, HudPill, IconButton, LumenPill, Twinkles } from './ui'
+import { FallingLeaves, Fireflies, IconButton, LanternFireflies, LumenPill, PlayButtonFireflies, SceneBackdrop, StagePill, StarPill, Twinkles } from './ui'
+import { chapterOf, stagePillLabel } from '@/lib/game/levels'
 
 /**
  * Home — the reference storybook home.
@@ -15,18 +16,24 @@ import { FallingLeaves, Fireflies, HudPill, IconButton, LumenPill, Twinkles } fr
 export function HomeScreen({
   totalStars,
   lumens,
+  highestUnlocked,
   dailyDone,
   onPlay,
+  onOpenChapter,
   onInstruments,
   onHowTo,
 }: {
   totalStars: number
   lumens: number
+  highestUnlocked: number
   dailyDone: boolean
   onPlay: () => void
+  onOpenChapter: () => void
   onInstruments: () => void
   onHowTo: () => void
 }) {
+  const ch = chapterOf(highestUnlocked)
+  const stageLabel = stagePillLabel(highestUnlocked)
   const [hopping, setHopping] = React.useState(false)
   const hopTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -47,117 +54,114 @@ export function HomeScreen({
   return (
     <div className="relative flex-1 flex flex-col overflow-hidden">
       {/* full-bleed storybook scene */}
-      <div aria-hidden className="absolute inset-0">
-        <img
+      <div aria-hidden className="absolute inset-0 z-0">
+        <SceneBackdrop
           src={A('bg-castle')}
-          alt=""
-          draggable={false}
-          className="absolute inset-0 w-full h-full object-cover anim-ken select-none"
+          tint="#1a2838"
+          imgClassName="anim-ken"
+          overlayClassName="bg-gradient-to-b from-[#0e1c14]/10 via-transparent to-[#0e1c14]/60"
         />
-        <div className="absolute inset-0 bg-gradient-to-b from-[#0e1c14]/10 via-transparent to-[#0e1c14]/60" />
         {/* slow clouds for depth */}
         <img
           src={A('deco-cloud-white')}
           alt=""
           draggable={false}
-          className="absolute top-[12%] w-24 opacity-30 anim-drift"
+          className="absolute top-[10%] w-[clamp(5rem,22vw,7rem)] opacity-35 anim-drift"
           style={{ animationDuration: '95s' }}
         />
         <img
           src={A('deco-cloud-pink')}
           alt=""
           draggable={false}
-          className="absolute top-[24%] w-20 opacity-25 anim-drift"
+          className="absolute top-[20%] w-[clamp(4rem,18vw,6rem)] opacity-30 anim-drift"
           style={{ animationDuration: '130s', animationDelay: '-60s' }}
         />
         <Twinkles count={10} />
-        <Fireflies count={13} />
-        <FallingLeaves count={12} />
+        <Fireflies count={6} className="ww-fireflies-layer" />
       </div>
 
-      {/* top bar */}
-      <header className="absolute top-3 inset-x-3 z-20 flex items-start justify-between gap-2">
-        <HudPill>
-          <img src={A('star-sparkle')} alt="" draggable={false} className="w-5 h-5 object-contain shrink-0" />
-          <span className="tabular-nums" aria-label={`${totalStars} stars collected`}>{totalStars}</span>
-        </HudPill>
-        <div className="flex items-center gap-2">
+      {/* back depth — drifts behind logo & play */}
+      <FallingLeaves count={6} subtle layer="back" />
+
+      {/* top bar — stage on the left; stars + lumens + settings grouped on the right */}
+      <header className="absolute inset-x-0 ww-gutter-x ww-gutter-t z-20 flex items-center justify-between gap-3">
+        <StagePill stageLabel={stageLabel} chapterBg={ch.bg} onClick={onOpenChapter} />
+        <div className="flex items-center gap-2.5 shrink-0">
+          <StarPill amount={totalStars} className="shrink-0" />
           <LumenPill amount={lumens} />
           <IconButton img={A('icon-gear')} label="Instruments" onClick={onInstruments} />
         </div>
       </header>
 
-      {/* center content — wobbling logo, hero PLAY, secondary actions */}
-      <main className="relative z-10 flex-1 flex flex-col items-center justify-center gap-5 px-6">
-        <div className="flex flex-col items-center gap-5 translate-y-3 sm:translate-y-5">
+      {/* center content — logo sits in the living scene; CTAs float above all particles */}
+      <main className="relative z-[18] flex-1 flex flex-col items-center justify-center gap-6 ww-gutter-x">
+        <div className="flex flex-col items-center gap-6 translate-y-2 sm:translate-y-4">
           <img
             src={A('logo')}
             alt="Wonderweave"
             draggable={false}
-            className="w-[300px] max-w-[84vw] select-none anim-wobble drop-shadow-[0_10px_24px_rgba(0,0,0,0.55)]"
+            className="home-logo select-none anim-wobble drop-shadow-[0_10px_24px_rgba(0,0,0,0.55)]"
           />
 
-          {/* hero PLAY — a hand-painted carved-plaque asset (generated in the
-              game's own art style), deep-red PLAY like the reference mock */}
-          <button
-            type="button"
-            aria-label={dailyDone ? 'Play — continue your journey' : 'Play — continue your journey, the daily folio awaits'}
-            onClick={() => {
-              initAudio()
-              sfx.ui()
-              onPlay()
-            }}
-            className="play-plaque group relative w-full max-w-[290px] cursor-pointer select-none rounded-[30px] overflow-hidden anim-ring-pulse focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#ffd76e]/70"
-            style={{
-              aspectRatio: '1178 / 618',
-              backgroundImage: `url(${A('play-btn')})`,
-              backgroundSize: '100% 100%',
-              backgroundRepeat: 'no-repeat',
-              filter: 'drop-shadow(0 10px 18px rgba(10, 20, 10, 0.55))',
-            }}
-          >
-            <span
-              className="absolute inset-0 flex items-center justify-center gap-2.5 font-display font-black uppercase tracking-[0.16em] text-[#a2372c] text-[27px] sm:text-[30px] transition-transform duration-200 group-active:scale-95"
-              style={{ textShadow: '0 1px 0 rgba(255,252,240,0.9), 0 3px 8px rgba(140,80,30,0.3)' }}
+          {/* hero PLAY — fireflies orbit behind; button pops toward the player */}
+          <div className="play-btn-wrap relative inline-flex items-center justify-center mt-1">
+            <PlayButtonFireflies />
+            <button
+              type="button"
+              aria-label={dailyDone ? 'Play — continue your journey' : 'Play — continue your journey, the daily folio awaits'}
+              onClick={() => {
+                initAudio()
+                sfx.ui()
+                onPlay()
+              }}
+              className="play-btn-hero anim-play-forward relative z-10"
             >
-              <img src={A('star-sparkle')} alt="" aria-hidden draggable={false} className="w-6 h-6 sm:w-7 sm:h-7 object-contain anim-glow-pulse" />
               Play
-              <Play className="w-6 h-6 sm:w-7 sm:h-7" strokeWidth={2.6} aria-hidden />
-            </span>
-          </button>
+              <Play className="w-4 h-4 shrink-0 fill-[#a2372c] stroke-none" aria-hidden />
+            </button>
+          </div>
 
           <WoodSecondary onClick={onHowTo} label="How to Play" />
         </div>
       </main>
 
+      {/* mid depth — floats over hero UI */}
+      <FallingLeaves count={5} subtle layer="front" />
+
       {/* mascot — Pip the lantern bunny on his little stone platform; pat him! */}
-      <div className="pointer-events-none absolute left-1 bottom-0 z-10 flex flex-col items-center">
+      <div className="pointer-events-none absolute left-0 ww-gutter-x bottom-0 z-[12] flex flex-col items-start home-mascot-wrap">
         <button
           type="button"
           aria-label="Pip the lantern bunny — say hello"
           onClick={patBunny}
           className="pointer-events-auto relative cursor-pointer select-none"
         >
+          <LanternFireflies count={5} />
           <img
             src={A('deco-platform')}
             alt=""
             aria-hidden
             draggable={false}
-            className="w-28 sm:w-32 -mb-2 opacity-90 drop-shadow-[0_6px_10px_rgba(0,0,0,0.4)]"
+            className="home-mascot-platform relative -mb-2 opacity-90 drop-shadow-[0_6px_10px_rgba(0,0,0,0.4)]"
           />
-          <img
-            src={A('bunny-lantern')}
-            alt=""
-            draggable={false}
-            className={`absolute -top-[74px] left-1/2 -translate-x-1/2 w-[74px] sm:w-[84px] drop-shadow-[0_8px_16px_rgba(0,0,0,0.45)] ${
-              hopping ? 'anim-hop' : 'anim-bob'
-            }`}
-          />
+          <div className="absolute -top-[74px] left-1/2 -translate-x-1/2 home-mascot-bunny anim-mascot-sway">
+            <div className={hopping ? 'anim-hop' : 'anim-bob-subtle'}>
+              <img
+                src={A('bunny-lantern')}
+                alt=""
+                draggable={false}
+                className="w-full drop-shadow-[0_8px_16px_rgba(0,0,0,0.45)] anim-glow-pulse-subtle"
+              />
+              <span className="lantern-sparkle w-2.5 h-2.5 top-[14%] left-[56%] anim-twinkle" style={{ animationDelay: '0.4s' }} aria-hidden />
+              <span className="lantern-sparkle w-2 h-2 top-[28%] left-[68%] anim-twinkle" style={{ animationDelay: '1.2s' }} aria-hidden />
+              <span className="lantern-sparkle w-1.5 h-1.5 top-[20%] left-[48%] anim-twinkle" style={{ animationDelay: '2.1s' }} aria-hidden />
+            </div>
+          </div>
         </button>
       </div>
 
-      {/* a few bold leaves drifting IN FRONT of the scene for storybook depth */}
-      <FallingLeaves count={5} className="z-[15]" bold />
+      {/* front depth — occasional leaves drift past Pip, under the top bar */}
+      <FallingLeaves count={3} subtle layer="over" />
     </div>
   )
 }
@@ -173,7 +177,8 @@ function WoodSecondary({ onClick, label }: { onClick: () => void; label: string 
         sfx.ui()
         onClick()
       }}
-      className="btn-wood font-display font-bold uppercase tracking-wider text-sm px-6 py-2.5 rounded-xl min-h-[44px] cursor-pointer select-none active:translate-y-[3px]"
+      className="btn-wood font-display font-bold uppercase tracking-wider text-sm px-6 py-2.5 rounded-xl min-h-[44px] cursor-pointer select-none active:translate-y-[3px] anim-wobble-subtle"
+      style={{ animationDelay: '-2.4s' }}
     >
       {label}
     </button>

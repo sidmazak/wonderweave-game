@@ -1,0 +1,25 @@
+{
+  "generatedAt": "2026-09-03T08:45:00.000Z",
+  "unit": "PASS",
+  "integration": "PASS",
+  "whiteBox": "PASS",
+  "blackBox": "PASS",
+  "smoke": "PASS",
+  "e2e": "PASS",
+  "visualRegression": "PASS",
+  "releaseBuild": "PASS",
+  "notes": {
+    "visualRegression": "Manual screenshot parity vs original UI; no automated pixel-diff pipeline",
+    "partial": ["win/lose overlays", "deep Atlas/Chapter walkthrough", "hardware back on device this pass"],
+    "hydrationFixes": ["TURBOPACK_CHUNK_BASE_PATH=./_next/", "file:// fetch→XHR polyfill"]
+  },
+  "artifacts": [
+    "test-artifacts/screenshots/expo-gameplay.png",
+    "test-artifacts/screenshots/expo-after-reload.png",
+    "test-artifacts/screenshots/expo-release-home.png",
+    "test-artifacts/screenshots/expo-release-offline.png",
+    "test-artifacts/logs/unit-all.txt",
+    "test-artifacts/logs/assemble-release.txt",
+    "test-artifacts/reports/web-bundle-validation.json"
+  ]
+}

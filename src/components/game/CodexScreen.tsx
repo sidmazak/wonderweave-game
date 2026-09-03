@@ -3,10 +3,11 @@
 import * as React from 'react'
 import { cn } from '@/lib/utils'
 import { A } from '@/lib/game/assets'
-import { useCodex, LUMEN_ITEMS, ENTITY_ITEMS, LORE_ITEMS } from '@/lib/game/codex'
+import { CHAPTERS } from '@/lib/game/levels'
 import type { CodexItem, CodexTab } from '@/lib/game/codex'
+import { useCodex, LUMEN_ITEMS, ENTITY_ITEMS, LORE_ITEMS } from '@/lib/game/codex'
 import { initAudio, sfx } from '@/lib/game/sound'
-import { RibbonBanner, WoodTabs, WoodButton, IconButton, ModalShell, ParchmentPanel } from './ui'
+import { WoodTabs, WoodButton, SceneBackdrop, ScreenHeader, ModalShell, DialogPanel } from './ui'
 
 /* ---------------- shared bits ---------------- */
 
@@ -19,10 +20,12 @@ const TABS: { id: CodexTab; label: string }[] = [
 /** Warm storybook backdrop: deep forest base + faint arch art + vignette. */
 function StorybookBackdrop({ img, opacity = 0.25 }: { img: string; opacity?: number }) {
   return (
-    <div className="absolute inset-0" aria-hidden>
-      <img src={img} alt="" draggable={false} className="h-full w-full object-cover" style={{ opacity }} />
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_38%,rgba(5,9,5,0.78)_100%)]" />
-    </div>
+    <SceneBackdrop
+      src={img}
+      tint="#1e2848"
+      opacity={opacity}
+      overlayClassName="bg-[radial-gradient(ellipse_at_center,transparent_38%,rgba(5,9,5,0.78)_100%)]"
+    />
   )
 }
 
@@ -133,11 +136,49 @@ function splitLoreName(name: string): { numeral: string; title: string } {
   return { numeral: '?', title: name }
 }
 
-/** Warm natural storybook hues — one accent per chapter medallion. */
-const LORE_HUES = [
-  '#5f8f3e', '#3f7d6a', '#b0722c', '#a93a34', '#8a5aa0', '#c2912e',
-  '#4e8a5a', '#a0522d', '#6a7d3a', '#b5486a', '#2f7d68', '#8a6a2a',
-]
+/** Chapter id from a lore codex entry (`lore:3` → 3). */
+function loreChapterId(item: CodexItem): number {
+  const n = parseInt(item.id.replace('lore:', ''), 10)
+  return Number.isFinite(n) ? n : 1
+}
+
+/** Small deco accent per chapter — sits on the scene vignette. */
+const LORE_DECO: Record<number, string> = {
+  1: 'deco-island',
+  2: 'deco-tree',
+  3: 'deco-moon',
+  4: 'deco-waterfall',
+  5: 'deco-arch',
+  6: 'deco-cloud-white',
+  7: 'deco-lamp',
+  8: 'deco-mushrooms',
+  9: 'deco-sign',
+  10: 'deco-cloud-pink',
+  11: 'deco-butterfly',
+  12: 'deco-platform',
+}
+
+function LoreSceneThumb({ chapterId, numeral, found }: { chapterId: number; numeral: string; found: boolean }) {
+  const ch = CHAPTERS[chapterId - 1]
+  const bg = ch ? A(ch.bg) : A('bg-map')
+  const deco = LORE_DECO[chapterId]
+  return (
+    <span className={cn('lore-scene-thumb shrink-0', !found && 'lore-scene-thumb-locked')} aria-hidden>
+      <img src={bg} alt="" draggable={false} className="lore-scene-img" />
+      {deco ? (
+        <img src={A(deco)} alt="" draggable={false} className="lore-scene-deco" />
+      ) : null}
+      <span className="lore-scene-vignette" />
+      {found ? (
+        <span className="lore-scene-badge">{numeral}</span>
+      ) : (
+        <span className="lore-scene-lock">
+          <img src={A('medallion-lock')} alt="" draggable={false} className="w-7 h-7 object-contain opacity-90 drop-shadow" />
+        </span>
+      )}
+    </span>
+  )
+}
 
 function LoreList({
   items,
@@ -155,7 +196,8 @@ function LoreList({
       {items.map((item, i) => {
         const isFound = found.has(item.id)
         const { numeral, title } = splitLoreName(item.name)
-        const hue = LORE_HUES[i % LORE_HUES.length]
+        const chapterId = loreChapterId(item)
+        const tagline = CHAPTERS[chapterId - 1]?.tagline ?? item.sub
         return (
           <button
             key={item.id}
@@ -170,34 +212,24 @@ function LoreList({
             )}
             style={{ animationDelay: `${Math.min(i * 55, 500)}ms` }}
           >
-            {/* chapter medallion — colour carries the vibrance */}
-            <span
-              className={cn(
-                'lore-medal w-12 h-12 shrink-0 flex items-center justify-center font-display text-xl font-black',
-                !isFound && 'lore-medal-locked',
-              )}
-              aria-hidden
-              style={
-                isFound
-                  ? { background: `linear-gradient(160deg, ${hue} 0%, ${hue}cc 55%, #00000030 130%), linear-gradient(180deg, #fff6dd, #f0e2b8)`, color: '#fff9e8', boxShadow: `inset 0 2px 3px rgba(255,255,240,0.55), inset 0 -3px 5px rgba(60,30,10,0.35), 0 3px 7px rgba(40,22,8,0.35), 0 0 0 2.5px #c9a04e` }
-                  : undefined
-              }
-            >
-              {isFound ? numeral : <img src={A('medallion-lock')} alt="" draggable={false} className="w-6 h-6 object-contain opacity-80" />}
-            </span>
+            <LoreSceneThumb chapterId={chapterId} numeral={numeral} found={isFound} />
 
             <span className="flex-1 min-w-0">
-              <span className="flex items-center gap-1.5">
-                {/* colour ribbon stub for found chapters */}
-                {isFound && <span className="w-1.5 h-4 rounded-full shrink-0" style={{ background: hue }} aria-hidden />}
+              <span className="flex items-center gap-1.5 min-w-0">
+                {isFound ? (
+                  <span className="lore-chapter-pill shrink-0">{numeral}</span>
+                ) : null}
                 <span className={cn('block font-display font-extrabold text-[15px] leading-snug truncate', isFound ? 'text-[#5d3a1a]' : 'text-[#8a7454]')}>
                   {isFound ? title : 'A chapter yet unwoven…'}
                 </span>
               </span>
               {isFound ? (
-                <span className="block text-xs italic text-[#7a5c34] leading-snug mt-1 line-clamp-2">{item.desc}</span>
+                <>
+                  <span className="block text-[10px] uppercase tracking-[0.14em] text-[#8a6a3a] font-bold mt-0.5 truncate">{tagline}</span>
+                  <span className="block text-xs italic text-[#7a5c34] leading-snug mt-1 line-clamp-2">{item.desc}</span>
+                </>
               ) : (
-                <span className="block text-xs italic text-[#9a8462] leading-snug mt-1">Seal the chapters before it to reveal this page</span>
+                <span className="block text-xs italic text-[#9a8462] leading-snug mt-1">Seal every stage in this chapter to recover its lore</span>
               )}
             </span>
 
@@ -254,14 +286,10 @@ export function CodexScreen({ onBack }: { onBack: () => void }) {
     <div className="relative flex h-full w-full flex-col overflow-hidden bg-[#101d13] ww-tap-none">
       <StorybookBackdrop img={A('bg-arch')} />
 
-      <IconButton img={A('icon-back')} label="Back" onClick={onBack} sound="back" className="absolute top-3 left-3 z-20" />
+      <ScreenHeader title="CODEX" subtitle="Recovered Knowledge" onBack={onBack} backLabel="Back" />
 
       <div className="relative z-10 flex h-full min-h-0 flex-col">
-        <header className="pt-4 px-4">
-          <RibbonBanner title="CODEX" subtitle="Recovered Knowledge" />
-        </header>
-
-        <div className="px-4 mt-3">
+        <div className="px-4 pt-1">
           <WoodTabs tabs={TABS} active={tab} onChange={setTab} className="w-full" />
         </div>
 
@@ -287,9 +315,14 @@ export function CodexScreen({ onBack }: { onBack: () => void }) {
             </>
           )}
           {tab === 'lore' && (
-            <div role="tabpanel" aria-label="Recovered lore">
-              <LoreList items={LORE_ITEMS} found={found} shakeId={shakeId} onTap={handleTap} />
-            </div>
+            <>
+              <p className="text-center text-[11px] italic text-[#d9c79a]/80 mb-3" aria-hidden>
+                Each sealed chapter leaves a thread of memory in the Folio…
+              </p>
+              <div role="tabpanel" aria-label="Recovered lore">
+                <LoreList items={LORE_ITEMS} found={found} shakeId={shakeId} onTap={handleTap} />
+              </div>
+            </>
           )}
 
           <footer className="mt-5 mb-2 text-center">
@@ -303,19 +336,41 @@ export function CodexScreen({ onBack }: { onBack: () => void }) {
       {/* found-card detail */}
       {detail && (
         <ModalShell onClose={() => setDetail(null)} labelledBy="codex-detail-title">
-          <ParchmentPanel className="p-6 text-center">
-            {detail.icon ? (
+          <DialogPanel
+            onClose={() => setDetail(null)}
+            closeLabel="Close codex detail"
+            className="text-center"
+            bodyClassName="pb-1"
+            footer={
+              <WoodButton variant="leaf" className="w-full mb-1" onClick={() => setDetail(null)}>
+                Close
+              </WoodButton>
+            }
+          >
+            {detail.tab === 'lore' ? (
+              <div className="lore-detail-scene mx-auto mb-3">
+                <img
+                  src={detail.icon ?? A(CHAPTERS[loreChapterId(detail) - 1]?.bg ?? 'bg-map')}
+                  alt=""
+                  draggable={false}
+                  className="lore-detail-scene-img"
+                />
+                {LORE_DECO[loreChapterId(detail)] ? (
+                  <img
+                    src={A(LORE_DECO[loreChapterId(detail)]!)}
+                    alt=""
+                    draggable={false}
+                    className="lore-detail-scene-deco"
+                  />
+                ) : null}
+                <span className="lore-detail-scene-vignette" />
+                <span className="lore-detail-scene-badge">{splitLoreName(detail.name).numeral}</span>
+              </div>
+            ) : detail.icon ? (
               <span className="codex-icon-cell w-20 h-20 mx-auto flex items-center justify-center mb-3">
                 <img src={detail.icon} alt="" draggable={false} className="w-14 h-14 object-contain" />
               </span>
-            ) : (
-              <span
-                className="w-20 h-20 mx-auto mb-3 rounded-xl flex items-center justify-center font-display text-3xl font-black text-[#a9721f]"
-                aria-hidden
-              >
-                {splitLoreName(detail.name).numeral}
-              </span>
-            )}
+            ) : null}
             <h3 id="codex-detail-title" className="font-display text-2xl font-extrabold text-[#5d3a1a] tracking-wide">
               {detail.tab === 'lore' ? splitLoreName(detail.name).title : detail.name}
             </h3>
@@ -326,10 +381,7 @@ export function CodexScreen({ onBack }: { onBack: () => void }) {
               <span className="font-bold uppercase tracking-wider text-[#8a6a3a]">How: </span>
               {detail.how}
             </p>
-            <WoodButton variant="leaf" className="w-full mt-4" onClick={() => setDetail(null)}>
-              Close
-            </WoodButton>
-          </ParchmentPanel>
+          </DialogPanel>
         </ModalShell>
       )}
     </div>

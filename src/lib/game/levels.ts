@@ -150,6 +150,39 @@ export function stageTitle(level: Pick<LevelDef, 'chapter' | 'id' | 'name'>): st
   return `${level.chapter}-${((level.id - 1) % LEVELS_PER_CHAPTER) + 1}`
 }
 
+/** Stage index within its chapter (1–12). */
+export function stageInChapter(levelId: number): number {
+  return ((Math.max(1, levelId) - 1) % LEVELS_PER_CHAPTER) + 1
+}
+
+/** Home HUD pill label — chapter-stage, e.g. 1-2. */
+export function stagePillLabel(levelId: number): string {
+  const ch = chapterOf(levelId)
+  return `${ch.id}-${stageInChapter(levelId)}`
+}
+
+/** Chapter island / landmark art used on the chapter map (not the full-screen bg). */
+export function chapterDecoKey(bg: string): string {
+  switch (bg) {
+    case 'bg-forest':
+      return 'deco-tree'
+    case 'bg-night':
+      return 'deco-moon'
+    case 'bg-sunset':
+      return 'deco-waterfall'
+    case 'bg-arch':
+      return 'deco-arch'
+    case 'bg-altar':
+      return 'deco-lamp'
+    case 'bg-ruins':
+      return 'deco-sign'
+    case 'bg-castle':
+      return 'deco-platform'
+    default:
+      return 'deco-island'
+  }
+}
+
 export function chapterLevelIds(chapterId: number): number[] {
   const start = (Math.max(1, chapterId) - 1) * LEVELS_PER_CHAPTER + 1
   return Array.from({ length: LEVELS_PER_CHAPTER }, (_, i) => start + i)
@@ -179,16 +212,43 @@ function mulberry32(seed: number): () => number {
 const TYPE_POOL: TileType[] = ['leaf', 'drop', 'flame', 'star', 'flower', 'gem', 'mushroom', 'orb']
 
 function typesForLevel(levelId: number): TileType[] {
-  // gentle ramp: 4 kinds at first, all 8 once the world deepens
-  const count = 4 + Math.min(4, Math.floor((levelId - 1) / 30))
+  const count = 4 + Math.min(4, Math.floor((levelId - 1) / 18))
+  const ch = chapterOf(levelId)
+  const stage = ((levelId - 1) % LEVELS_PER_CHAPTER) + 1
+  // rotate palette by chapter + stage so every level feels distinct
+  const rot = (ch.id * 2 + stage) % TYPE_POOL.length
   const slice = TYPE_POOL.slice(0, count)
-  if (levelId <= CORE_LEVELS) return slice
-  // echoes gently reshuffle the palette so familiar chapters feel new again
-  const lap = Math.floor((levelId - 1) / LEVELS_PER_CHAPTER)
-  if (lap % 2 === 0) return slice
-  const shifted = [...slice]
-  const rot = (lap % slice.length)
-  return shifted.slice(rot).concat(shifted.slice(0, rot))
+  return slice.slice(rot).concat(slice.slice(0, rot))
+}
+
+/** Play-screen backdrop — always the chapter's own scenery. */
+export function playBgForLevel(levelId: number): string {
+  if (levelId <= 0) return 'bg-sunset'
+  return chapterOf(levelId).bg
+}
+
+/** Fallback fill behind scaled backdrop art (hides rounded-corner exports). */
+export function chapterBackdropTint(bg: string): string {
+  switch (bg) {
+    case 'bg-forest':
+      return '#1a3422'
+    case 'bg-night':
+      return '#0d1830'
+    case 'bg-sunset':
+      return '#3d1a2e'
+    case 'bg-arch':
+      return '#1e2848'
+    case 'bg-altar':
+      return '#2a1a10'
+    case 'bg-ruins':
+      return '#1a1814'
+    case 'bg-castle':
+      return '#1a2838'
+    case 'bg-map':
+      return '#c9b080'
+    default:
+      return '#1a4068'
+  }
 }
 
 function sizeForLevel(levelId: number): number {

@@ -45,13 +45,29 @@ export const ENTITY_ITEMS: CodexItem[] = [
   { id: 'entity:walk', tab: 'entities', name: 'Pathfinder', sub: 'The Brave', desc: 'Walked the Whispering Woods end to end. Twice.', icon: A('bunny-walk'), how: 'Complete Chapter I' },
 ]
 
+export const LORE_EXCERPTS: Record<number, string> = {
+  1: 'Where the first threads caught the wind — the Skyreach Isles drift patiently, waiting for a weaver bold enough to name them.',
+  2: 'The leaves remember every story ever whispered beneath their canopy. Step softly; the woods are listening.',
+  3: 'Dew gathers where the moon lingers longest. In Moonlit Vale, time itself seems woven from silver thread.',
+  4: 'Sparks climb the falling water at Ember Falls. Each cascade is a verse in a fire-old hymn.',
+  5: 'The ridge hums a crystalline chord only the attuned can hear. Listen — the stones are singing.',
+  6: 'Islands drift like sleeping whales across the Floating Sea. No map holds them for long.',
+  7: 'A thousand lanterns, one slow flame — Lanternwick Hollow keeps vigil while the world forgets itself.',
+  8: 'Mushrooms light the undergrowth of Sporecap Wilds. The dark here is gentle, almost curious.',
+  9: 'Torn pages still hold their spells in the Ruined Folio. Some mysteries refuse to stay buried.',
+  10: 'The spire counts the storm at Thunderspire. Lightning writes its tally in the sky.',
+  11: 'Constellations filed by subject in the Celestial Archive. Even stars keep orderly records.',
+  12: 'Where the world was first woven — the First Loom still turns, though none remember who set it spinning.',
+}
+
 export const LORE_ITEMS: CodexItem[] = CHAPTERS.map((ch) => ({
   id: `lore:${ch.id}`,
   tab: 'lore' as const,
   name: `${ch.numeral}. ${ch.title}`,
-  sub: `Chapter ${ch.numeral}`,
-  desc: ch.tagline,
-  how: 'Unlock this chapter',
+  sub: ch.tagline,
+  desc: LORE_EXCERPTS[ch.id] ?? ch.tagline,
+  icon: A(ch.bg),
+  how: 'Seal every stage in the chapter',
 }))
 
 export const CODEX_ITEMS: CodexItem[] = [...LUMEN_ITEMS, ...ENTITY_ITEMS, ...LORE_ITEMS]
@@ -97,6 +113,7 @@ export function discover(...ids: string[]): string[] {
     /* storage full — ignore */
   }
   window.dispatchEvent(new CustomEvent(EVENT))
+  window.dispatchEvent(new CustomEvent('ww-codex-discover', { detail: fresh }))
   return fresh
 }
 

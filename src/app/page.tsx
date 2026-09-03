@@ -1,3 +1,5 @@
+'use client'
+
 import WonderweaveGame from '@/components/game/WonderweaveGame'
 
 export default function Home() {

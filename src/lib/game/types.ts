@@ -107,6 +107,4 @@ export interface WWSettings {
   sfxVol: number // 0..1
   vibrations: boolean
   particles: boolean
-  reducedMotion: boolean
-  highContrast: boolean
 }
