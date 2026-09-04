@@ -167,7 +167,7 @@ export function InstrumentsScreen({
                 maxLength={18}
                 aria-label="Weaver name"
                 placeholder="Your name…"
-                onChange={(e) => setName(e.target.value)}
+                onChange={(e) => setNameDraft(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') saveName()
                 }}
