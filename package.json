@@ -12,6 +12,8 @@
     "expo:start": "npm run expo:start --prefix \"Expo app\"",
     "start": "npx --yes serve out -p 3000",
     "lint": "eslint .",
+    "test": "node --experimental-strip-types --test \"tests/*.test.ts\"",
+    "test:game": "node --experimental-strip-types --test \"tests/*.test.ts\"",
     "brand:icons": "node scripts/generate-brand-icons.mjs",
     "asset-eraser": "node tools/asset-eraser/server.mjs"
   },

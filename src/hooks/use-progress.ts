@@ -53,18 +53,37 @@ function newPlayerId(): string {
   return `ww-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`
 }
 
-function ensurePlayer(): { id: string; name: string } {
+/** Pure read: resolves the stored player, minting an id/name in memory when absent.
+    Persisting is done separately so this is safe to call from a state initializer. */
+function readPlayer(): { id: string; name: string } {
   if (typeof window === 'undefined') return { id: '', name: '' }
-  let id = localStorage.getItem(LS_PLAYER_ID)
-  if (!id) {
-    id = newPlayerId()
-    localStorage.setItem(LS_PLAYER_ID, id)
+  let id: string | null = null
+  let name: string | null = null
+  try {
+    id = localStorage.getItem(LS_PLAYER_ID)
+    name = localStorage.getItem(LS_PLAYER_NAME)
+  } catch {
+    /* storage unavailable — fall through to freshly minted values */
   }
-  let name = localStorage.getItem(LS_PLAYER_NAME)
-  if (!name || isLegacyWeaverName(name)) {
-    name = freshWeaverName()
+  return {
+    id: id || newPlayerId(),
+    name: !name || isLegacyWeaverName(name) ? generateWeaverName() : name,
   }
-  return { id, name }
+}
+
+/** Write back anything the read had to mint. No React state involved. */
+function persistPlayer(player: { id: string; name: string }): void {
+  if (typeof window === 'undefined' || !player.id) return
+  try {
+    if (localStorage.getItem(LS_PLAYER_ID) !== player.id) {
+      localStorage.setItem(LS_PLAYER_ID, player.id)
+    }
+    if (localStorage.getItem(LS_PLAYER_NAME) !== player.name) {
+      localStorage.setItem(LS_PLAYER_NAME, player.name)
+    }
+  } catch {
+    /* quota / private mode */
+  }
 }
 
 function loadJSON<T>(key: string, fallback: T): T {
@@ -102,35 +121,28 @@ export function replayRewards(stars: number): { lumens: number; lens: number; nu
 }
 
 export function useProgress() {
-  const [player, setPlayer] = useState<{ id: string; name: string }>({ id: '', name: '' })
-  const [progress, setProgress] = useState<ProgressMap>({})
-  const progressRef = useRef<ProgressMap>({})
-  const [lumens, setLumens] = useState(0)
-  const lumensRef = useRef(0)
-  const [inventory, setInventory] = useState<BoosterInventory>(DEFAULT_INVENTORY)
-  const inventoryRef = useRef<BoosterInventory>(DEFAULT_INVENTORY)
-  const [daily, setDaily] = useState<DailyState>({ last: null, streak: 0 })
-  const dailyRef = useRef<DailyState>({ last: null, streak: 0 })
-  const nameRef = useRef('')
+  /* Saves are read straight into initial state. None of these values are painted
+     during the hydration render (the app is on the splash screen then), so there is
+     no markup to mismatch — and it avoids a setState-in-effect hydration pass. */
+  const [player, setPlayer] = useState<{ id: string; name: string }>(readPlayer)
+  const [progress, setProgress] = useState<ProgressMap>(() => loadJSON<ProgressMap>(LS_PROGRESS, {}))
+  const progressRef = useRef<ProgressMap>(progress)
+  const [lumens, setLumens] = useState(() => loadJSON<number>(LS_LUMENS, 40))
+  const lumensRef = useRef(lumens)
+  const [inventory, setInventory] = useState<BoosterInventory>(() => ({
+    ...DEFAULT_INVENTORY,
+    ...loadJSON<BoosterInventory>(LS_INVENTORY, DEFAULT_INVENTORY),
+  }))
+  const inventoryRef = useRef<BoosterInventory>(inventory)
+  const [daily, setDaily] = useState<DailyState>(() => loadJSON<DailyState>(LS_DAILY, { last: null, streak: 0 }))
+  const dailyRef = useRef<DailyState>(daily)
+  const nameRef = useRef(player.name)
 
   useEffect(() => {
+    // Side effects only — normalise the schema and write back any minted player id.
     ensureSaveSchema()
-    const p = ensurePlayer()
-    nameRef.current = p.name
-    const local = loadJSON<ProgressMap>(LS_PROGRESS, {})
-    progressRef.current = local
-    setPlayer(p)
-    setProgress(local)
-    const lumensLoaded = loadJSON<number>(LS_LUMENS, 40)
-    lumensRef.current = lumensLoaded
-    setLumens(lumensLoaded)
-    const invLoaded: BoosterInventory = { ...DEFAULT_INVENTORY, ...loadJSON<BoosterInventory>(LS_INVENTORY, DEFAULT_INVENTORY) }
-    inventoryRef.current = invLoaded
-    setInventory(invLoaded)
-    const dailyLoaded = loadJSON<DailyState>(LS_DAILY, { last: null, streak: 0 })
-    dailyRef.current = dailyLoaded
-    setDaily(dailyLoaded)
-  }, [])
+    persistPlayer(player)
+  }, [player])
 
   const saveResult = useCallback((levelId: number, score: number, stars: number) => {
     setProgress((prev) => {

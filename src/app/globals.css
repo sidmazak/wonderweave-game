@@ -1554,7 +1554,9 @@ body.ww-modal-open .ww-ambient { animation-play-state: paused; }
   border-radius: 999px;
   background: linear-gradient(90deg, #b8e08a 0%, #8fc95c 45%, #63a838 100%);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55);
-  transition: width 0.25s ease-out;
+  /* No width transition: the percentage is already eased frame-by-frame in JS.
+     A CSS transition on top makes the painted bar trail the number by ~250ms
+     (measured: 83% label vs 62% bar), which reads as a desynced loader. */
   position: relative;
   overflow: hidden;
 }
@@ -1742,3 +1744,81 @@ body.ww-modal-open .ww-ambient { animation-play-state: paused; }
 /* v3.1 recompile nudge */
 
 /* recompile nudge v33 */
+
+/* ---------------------------------------------------------------------------
+ * Reduced motion
+ *
+ * Honours the OS "reduce motion" setting. This is deliberately not a blanket
+ * `animation: none` — in a match-3 board, tile falls and clears *carry meaning*
+ * (they show where charms went and what was removed), so removing them makes
+ * the board unreadable rather than more accessible.
+ *
+ * So: ambient/decorative motion that loops forever is switched off, and
+ * functional gameplay motion is kept but shortened so it still reads as cause
+ * and effect without sustained movement.
+ * ------------------------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  /* Decorative, looping, purely atmospheric — off. */
+  .anim-ken,
+  .anim-drift,
+  .anim-sway,
+  .anim-mascot-sway,
+  .anim-bob,
+  .anim-bob-subtle,
+  .anim-float,
+  .anim-orbit,
+  .anim-flap,
+  .anim-hop,
+  .anim-breathe,
+  .anim-glow-pulse,
+  .anim-glow-pulse-subtle,
+  .anim-lantern-glow,
+  .anim-spin-slow,
+  .anim-ring-pulse,
+  .anim-ready-pulse,
+  .anim-wiggle,
+  .anim-prism,
+  .anim-confetti,
+  .anim-blast-ring,
+  .ww-living {
+    animation: none !important;
+  }
+
+  /* Ambient particle layers are pure decoration — reuse the existing
+     no-particles treatment rather than inventing a second mechanism. */
+  .ww-ambient,
+  .ww-particle,
+  .ww-fireflies-layer {
+    display: none !important;
+  }
+
+  /* Board shake is jarring and communicates nothing the score does not. */
+  .anim-board-shake {
+    animation: none !important;
+  }
+
+  /* Functional motion: keep, but make it brief. */
+  .tile-anim-fall,
+  .anim-tile-land,
+  .anim-tile-select,
+  .tile-clearing {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+
+  /* Screen/modal entrances stay, just instant. */
+  .anim-screen-in,
+  .anim-modal-in,
+  .anim-rise-in,
+  .anim-fade-in,
+  .anim-rise,
+  .anim-combo,
+  .anim-star-pop {
+    animation-duration: 0.01ms !important;
+  }
+
+  /* The loader shine loops indefinitely. */
+  .ww-loader-fill::after {
+    animation: none !important;
+  }
+}

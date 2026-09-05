@@ -35,17 +35,30 @@ export function clearPreloadSession(): void {
   }
 }
 
+/** Max images in flight. Keeps decode work off a single frame on mid-tier Android,
+    where firing every request at once stalls the loader's own animation. */
+const CONCURRENCY = 6
+
 function loadImage(src: string, retries: number): Promise<void> {
   return new Promise((resolve) => {
     const img = new Image()
     let settled = false
+    let timer: ReturnType<typeof setTimeout> | null = null
     const finish = () => {
-      if (!settled) {
-        settled = true
-        resolve()
+      if (settled) return
+      settled = true
+      if (timer) clearTimeout(timer)
+      resolve()
+    }
+    // Decoding here (rather than at first paint) is what keeps the handoff from
+    // the loader to the home screen smooth — the bitmap is already rasterised.
+    img.onload = () => {
+      if (typeof img.decode === 'function') {
+        img.decode().then(finish, finish)
+      } else {
+        finish()
       }
     }
-    img.onload = finish
     img.onerror = () => {
       if (retries > 0) {
         // small backoff, then retry once (transient network flake)
@@ -56,8 +69,29 @@ function loadImage(src: string, retries: number): Promise<void> {
     }
     img.src = src
     // safety valve — some webviews stall onerror/onload
-    setTimeout(finish, 9000)
+    timer = setTimeout(finish, 9000)
   })
+}
+
+/** Run `task` over `items` with at most `limit` in flight, in order.
+    `shouldStop` is polled between items so a cancelled preload winds down
+    promptly instead of loading the whole tail in the background. */
+async function pool<T>(
+  items: T[],
+  limit: number,
+  task: (item: T) => Promise<void>,
+  shouldStop: () => boolean = () => false,
+): Promise<void> {
+  let cursor = 0
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    for (;;) {
+      if (shouldStop()) return
+      const index = cursor++
+      if (index >= items.length) return
+      await task(items[index])
+    }
+  })
+  await Promise.all(workers)
 }
 
 /**
@@ -86,36 +120,52 @@ export function preloadGame(onProgress: (p: number) => void): PreloadHandle {
 
   const critical = CRITICAL_ASSETS.map((name) => A(name))
   const rest = ALL_ASSETS.map((name) => A(name)).filter((src) => !critical.includes(src))
-  const total = critical.length + rest.length
-  const weights = critical.length * 2 + rest.length // critical counts double
+  // Critical assets carry double weight, so the bar moves quickly where the
+  // player is actually waiting (splash → home) and the long tail fills the rest.
+  const CRITICAL_WEIGHT = 2
+  const totalWeight = critical.length * CRITICAL_WEIGHT + rest.length
 
-  let loaded = 0
+  let doneWeight = 0
   let cancelled = false
   let reported = 0
 
-  const bump = () => {
-    loaded += 1
+  const bump = (weight: number) => {
+    doneWeight += weight
     if (cancelled) return
-    // map weighted completion to 0..1, clamp monotonic
-    const p = Math.min(1, loaded / total)
-    reported = Math.max(reported, p)
-    onProgress(reported)
+    // monotonic: progress never goes backwards, and never fakes 100%
+    const p = totalWeight > 0 ? Math.min(1, doneWeight / totalWeight) : 1
+    if (p > reported) {
+      reported = p
+      onProgress(reported)
+    }
   }
 
   const done = (async () => {
-    // kick everything off in parallel — the browser queues efficiently
-    const jobs: Promise<void>[] = []
-    for (const src of critical) {
-      jobs.push(loadImage(src, MAX_RETRIES).then(bump))
-    }
-    // stagger the long tail a touch so criticals win the bandwidth race
-    rest.forEach((src, i) => {
-      jobs.push(
-        new Promise<void>((res) => setTimeout(res, Math.min(i * 24, 600))).then(() => loadImage(src, MAX_RETRIES)).then(bump),
-      )
-    })
-    await Promise.all(jobs)
+    // Criticals first (home screen paints from these), then the long tail —
+    // both concurrency-capped so decoding never blocks the loader animation.
+    const stopped = () => cancelled
+    await pool(
+      critical,
+      CONCURRENCY,
+      async (src) => {
+        await loadImage(src, MAX_RETRIES)
+        bump(CRITICAL_WEIGHT)
+      },
+      stopped,
+    )
     if (!cancelled) {
+      await pool(
+        rest,
+        CONCURRENCY,
+        async (src) => {
+          await loadImage(src, MAX_RETRIES)
+          bump(1)
+        },
+        stopped,
+      )
+    }
+    if (!cancelled) {
+      // Always land exactly on 100%, even if an asset was skipped or errored.
       reported = 1
       onProgress(1)
       try {

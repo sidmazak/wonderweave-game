@@ -35,3 +35,45 @@ export function starRatingProgress(
   const passed = isObjectiveMet(level, score, collected)
   return [passed, score >= level.star2, score >= level.star3]
 }
+
+/* -------------------------------------------------------------------------
+ * End-of-stage resolution.
+ *
+ * Kept here as pure functions rather than inline in PlayScreen so the win,
+ * lose and star rules are testable without mounting the board — the lose path
+ * in particular is impractical to reach reliably in a UI test, because a large
+ * cascade usually clears the objective before the moves run out.
+ * ---------------------------------------------------------------------- */
+
+/** Points awarded per unused move when a stage is sealed. */
+export const SPARE_MOVE_BONUS = 100
+
+export type LevelOutcome = 'playing' | 'won' | 'lost'
+
+/**
+ * The stage verdict after a move has fully resolved. Meeting the objective wins
+ * even on the last move; running out of moves without meeting it loses.
+ */
+export function levelOutcome(
+  level: LevelDef,
+  score: number,
+  movesLeft: number,
+  collected: Partial<Record<string, number>>,
+): LevelOutcome {
+  if (isObjectiveMet(level, score, collected)) return 'won'
+  if (movesLeft <= 0) return 'lost'
+  return 'playing'
+}
+
+/** Final score including the spare-move bonus (winners only). */
+export function finalScoreFor(score: number, movesLeft: number, won: boolean): number {
+  return score + (won ? Math.max(0, movesLeft) * SPARE_MOVE_BONUS : 0)
+}
+
+/** Stars for a finished stage: 0 on a loss, otherwise 1–3 by final score. */
+export function starsFor(level: LevelDef, finalScore: number, won: boolean): number {
+  if (!won) return 0
+  if (finalScore >= level.star3) return 3
+  if (finalScore >= level.star2) return 2
+  return 1
+}

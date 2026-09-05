@@ -21,6 +21,8 @@
     "test:smoke": "node --test \"tests/smoke/**/*.test.mjs\"",
     "test:blackbox": "node --test \"tests/black-box/**/*.test.mjs\"",
     "test:e2e": "node scripts/android-e2e.mjs",
+    "test:maestro": "maestro test .maestro/",
+    "test:maestro:smoke": "maestro test .maestro/01-launch-and-load.yaml",
     "validate:webbundle": "node scripts/validate-web-bundle.mjs"
   },
   "dependencies": {

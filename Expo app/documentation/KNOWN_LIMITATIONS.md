@@ -6,13 +6,36 @@ On the web, `.ww-app-root` caps at `min(480px, 100vw)` (desktop letterboxing on 
 
 ## Splash “frozen at 0%”
 
-Resolved for packaging issues:
+Four separate causes have produced this symptom. All are fixed; the notes below
+matter because each fix is load-bearing and easy to undo by accident.
 
-1. Relative `TURBOPACK_CHUNK_BASE_PATH="./_next/"`
-2. `fetch` → XHR polyfill for `file://`
-3. Optimistic loader animation while React hydrates the prerendered splash HTML
+1. **Relative `TURBOPACK_CHUNK_BASE_PATH="./_next/"`** — an absolute `file://`
+   base deadlocks Turbopack chunk loading.
+2. **`fetch` → XHR polyfill** for `file://` (Chromium WebView rejects `fetch`
+   on `file://`, and App Router hydration depends on it).
+3. **Flight-payload chunk paths** — React's inline RSC payload
+   (`self.__next_f.push`) carries the client-reference chunk URLs it resolves
+   during hydration. Left root-absolute, every one of them 404s as
+   `file:///_next/...` → `ChunkLoadError` → React never hydrates and the loader
+   sits at 0% forever. `rewriteFlightRows()` in `scripts/lib/rewrite-paths.mjs`
+   rewrites those rows — **except** length-prefixed `T` rows, which must stay
+   byte-identical or React's parser desyncs (“Connection closed”, error #412).
+4. **Absolute paths in the surviving `T` row** are corrected at runtime by
+   `__ww_compat.js`, which normalises root-absolute packaged-asset URLs on
+   element `src`/`href` and `XMLHttpRequest.open`.
 
-If you still see a stuck splash, uninstall the old APK and install the latest release build.
+There is deliberately **no synthetic loader animation**. An earlier build faked
+progress with a CSS keyframe that animated the bar to 88% and pinned it there;
+because a CSS animation overrides the inline width, the bar and the percentage
+disagreed, and a completely dead app still looked like it was loading. The fill
+is now bound solely to real preload progress.
+
+Regression cover: `.maestro/01-launch-and-load.yaml` fails if a launch does not
+reach Home, and `tests/unit/validate-bundle.test.mjs` fails a bundle whose
+flight payload keeps absolute chunk URLs.
+
+If you still see a stuck splash, uninstall the old APK and install the latest
+release build.
 
 ## Native splash vs in-game loader
 
@@ -60,9 +83,25 @@ Geist `link rel=preload` with `crossorigin` may warn under `file://` (credential
 
 `0cz1d0mv5g_q7.js` (URL polyfill / nomodule) contains literal strings like `https://a@b` used in tests inside the polyfill. These are **not** runtime network calls. The validator lists them for review; they are allowlisted as review-only, not blockers.
 
-## Internet permission
+## Permissions
 
-The Android app still has the default INTERNET permission (Expo / WebView / tooling). The game bundle itself does not call a backend. Offline play was verified with wifi/data disabled.
+The release manifest declares exactly two real permissions:
+
+| Permission | Why |
+| --- | --- |
+| `INTERNET` | Required by Expo / the WebView stack. The game bundle makes no backend calls; offline play is verified with wifi and data disabled. |
+| `VIBRATE` | Haptics on match/clear, gated by the in-game vibration setting. |
+
+`READ_EXTERNAL_STORAGE`, `WRITE_EXTERNAL_STORAGE` and `SYSTEM_ALERT_WINDOW`
+arrive transitively (the storage pair from `expo-file-system`, the overlay
+permission from React Native's debug manifest) and are stripped via
+`android.blockedPermissions` in `app.config.js`.
+
+None of them affect saves: `localStorage` and the AsyncStorage mirror both live
+in the app's **private internal** directory
+(`/data/data/com.wonderweave.game/…`), which needs no permission. The external
+storage permissions govern shared storage only — and `WRITE_EXTERNAL_STORAGE`
+is a no-op from API 30 regardless (this app targets 36).
 
 ## Tablets
 

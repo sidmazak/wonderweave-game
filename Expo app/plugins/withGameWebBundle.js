@@ -25,10 +25,12 @@ const withGameWebBundle = (config) => {
       const web = path.join(mod.modRequest.projectRoot, 'web')
       const dest = path.join(mod.modRequest.platformProjectRoot, 'app/src/main/assets/www')
       if (!fs.existsSync(path.join(web, 'index.html'))) {
-        console.warn(
-          '[withGameWebBundle] web/index.html missing — run `npm run game:sync` before prebuild',
+        // Hard failure: warning-and-continue here silently produces an APK with
+        // no game in it (or, worse, a stale one from a previous sync).
+        throw new Error(
+          '[withGameWebBundle] web/index.html is missing — run `npm run game:sync` before prebuild. ' +
+            'Refusing to build an APK without the packaged game bundle.',
         )
-        return mod
       }
       fs.rmSync(dest, { recursive: true, force: true })
       copyDir(web, dest)

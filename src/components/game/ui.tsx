@@ -578,6 +578,62 @@ export function DialogPanel({
   )
 }
 
+const FOCUSABLE =
+  'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+
+/**
+ * Keyboard/screen-reader plumbing for a modal: move focus in on open, keep Tab
+ * inside it while it is up, close on Escape, and hand focus back to whatever
+ * opened it. `role="dialog"` alone announces the modal but still lets Tab walk
+ * off into the board behind it.
+ */
+function useModalFocus(
+  panelRef: React.RefObject<HTMLDivElement | null>,
+  onClose?: () => void,
+): void {
+  React.useEffect(() => {
+    const panel = panelRef.current
+    const previouslyFocused = document.activeElement as HTMLElement | null
+
+    const focusables = () => Array.from(panel?.querySelectorAll<HTMLElement>(FOCUSABLE) ?? [])
+    // Focus the first control, else the panel itself, so the reader starts here.
+    const first = focusables()[0]
+    if (first) first.focus()
+    else panel?.focus()
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && onClose) {
+        e.preventDefault()
+        onClose()
+        return
+      }
+      if (e.key !== 'Tab' || !panel) return
+      const items = focusables()
+      if (items.length === 0) {
+        e.preventDefault()
+        return
+      }
+      const firstItem = items[0]
+      const lastItem = items[items.length - 1]
+      const active = document.activeElement
+      if (e.shiftKey && (active === firstItem || !panel.contains(active))) {
+        e.preventDefault()
+        lastItem.focus()
+      } else if (!e.shiftKey && active === lastItem) {
+        e.preventDefault()
+        firstItem.focus()
+      }
+    }
+
+    document.addEventListener('keydown', onKeyDown, true)
+    return () => {
+      document.removeEventListener('keydown', onKeyDown, true)
+      // Return focus where the player left it.
+      if (previouslyFocused && document.contains(previouslyFocused)) previouslyFocused.focus()
+    }
+  }, [panelRef, onClose])
+}
+
 export function ModalShell({
   children,
   onClose,
@@ -593,6 +649,9 @@ export function ModalShell({
   overlayClassName?: string
   dim?: boolean
 }) {
+  const panelRef = React.useRef<HTMLDivElement>(null)
+  useModalFocus(panelRef, onClose)
+
   return (
     <div
       className={cn('fixed inset-0 z-50 flex items-center justify-center p-4', overlayClassName, dim && 'bg-[#101a10]/70 backdrop-blur-[3px]')}
@@ -601,7 +660,13 @@ export function ModalShell({
       aria-labelledby={labelledBy}
     >
       {onClose && <button aria-label="Close" className="absolute inset-0 cursor-default" onClick={onClose} tabIndex={-1} />}
-      <div className={cn('anim-modal-in relative w-full max-w-[380px] pointer-events-auto overflow-visible', className)}>{children}</div>
+      <div
+        ref={panelRef}
+        tabIndex={-1}
+        className={cn('anim-modal-in relative w-full max-w-[380px] pointer-events-auto overflow-visible outline-none', className)}
+      >
+        {children}
+      </div>
     </div>
   )
 }
@@ -899,11 +964,16 @@ export function CountUp({ value, duration = 900, className }: { value: number; d
 
 /* ---------------- Ambient decorations ---------------- */
 
-/** True once the component has mounted on the client (avoids SSR hydration mismatches for random layouts). */
+/** True once the component has mounted on the client (avoids SSR hydration mismatches for random layouts).
+    useSyncExternalStore returns the server snapshot (false) while hydrating and the
+    client snapshot (true) afterwards — no setState-in-effect needed. */
+const subscribeToNothing = () => () => {}
 function useMounted(): boolean {
-  const [mounted, setMounted] = React.useState(false)
-  React.useEffect(() => setMounted(true), [])
-  return mounted
+  return React.useSyncExternalStore(
+    subscribeToNothing,
+    () => true,
+    () => false,
+  )
 }
 
 /** Fireflies that halo the hero Play button — bright ring above the pill. */

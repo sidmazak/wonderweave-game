@@ -31,7 +31,14 @@ import type {
 } from '@/lib/game/types'
 import { initAudio, sfx } from '@/lib/game/sound'
 import { discover, LUMEN_ID_BY_TYPE } from '@/lib/game/codex'
-import { SCORE_GOAL_HINT, scoreGoalLabel, scoreObjectiveTarget, starRatingProgress } from '@/lib/game/objectives'
+import {
+  SCORE_GOAL_HINT,
+  finalScoreFor,
+  scoreGoalLabel,
+  scoreObjectiveTarget,
+  starRatingProgress,
+  starsFor,
+} from '@/lib/game/objectives'
 import { useVibrate } from './settings'
 import { BoardTileIcon, CountUp, HudStat, IconButton, ProgressBar, RibbonBanner, SceneBackdrop, ScoreGoalIcon, StarIcon } from './ui'
 import { FolioSealedModal, FolioLostModal, PauseModal } from './modals'
@@ -273,9 +280,8 @@ export function PlayScreen({
 
   const finishLevel = React.useCallback(
     (won: boolean) => {
-      const bonus = won ? movesRef.current * 100 : 0
-      const finalScore = scoreRef.current + bonus
-      const stars = won ? (finalScore >= level.star3 ? 3 : finalScore >= level.star2 ? 2 : 1) : 0
+      const finalScore = finalScoreFor(scoreRef.current, movesRef.current, won)
+      const stars = starsFor(level, finalScore, won)
       const res: LevelResult = { levelId: level.id, won, score: finalScore, stars, movesLeft: movesRef.current }
       statusRef.current = won ? 'won' : 'lost'
       setStatus(won ? 'won' : 'lost')
@@ -474,66 +480,68 @@ export function PlayScreen({
       setSelectedBoth(null)
       setHint(null)
 
-      const g0 = cloneGrid(gridRef.current)
-      const ta = g0[a.r]?.[a.c]
-      const tb = g0[b.r]?.[b.c]
-      if (!ta || !tb) {
-        lock(false)
-        return
-      }
+      // Everything past this point must release the input lock, including on an
+      // unexpected throw — otherwise busyRef stays true and the board silently
+      // stops accepting input for the rest of the level.
+      try {
+        const g0 = cloneGrid(gridRef.current)
+        const ta = g0[a.r]?.[a.c]
+        const tb = g0[b.r]?.[b.c]
+        if (!ta || !tb) return
 
-      const swapped = cloneGrid(g0)
-      swapped[a.r][a.c] = { ...tb }
-      swapped[b.r][b.c] = { ...ta }
-      setGridBoth(swapped)
-      sfx.swap()
-      await sleep(150)
+        const swapped = cloneGrid(g0)
+        swapped[a.r][a.c] = { ...tb }
+        swapped[b.r][b.c] = { ...ta }
+        setGridBoth(swapped)
+        sfx.swap()
+        await sleep(150)
 
-      const g1 = gridRef.current
-      const prismInvolved = ta.special === 'prism' || tb.special === 'prism'
-      // the full special+special weave table — non-null only when BOTH tiles are special
-      const combo = comboPlan(g1, a, b)
-      // g1 already contains the swapped tiles, so any shape present now was created by the swap
-      const valid = prismInvolved || combo !== null || findShapes(g1).length > 0
+        const g1 = gridRef.current
+        const prismInvolved = ta.special === 'prism' || tb.special === 'prism'
+        // the full special+special weave table — non-null only when BOTH tiles are special
+        const combo = comboPlan(g1, a, b)
+        // g1 already contains the swapped tiles, so any shape present now was created by the swap
+        const valid = prismInvolved || combo !== null || findShapes(g1).length > 0
 
-      if (!valid) {
-        setGridBoth(g0)
-        sfx.invalid()
-        await sleep(160)
-        lock(false)
-        return
-      }
-
-      if (!opts?.free) {
-        movesRef.current -= 1
-        setMovesLeft(movesRef.current)
-        // heartbeat as the loom runs out of moves (3 / 2 / 1)
-        if (movesRef.current >= 1 && movesRef.current <= 3 && urgentRef.current !== movesRef.current) {
-          urgentRef.current = movesRef.current
-          sfx.urgent()
+        if (!valid) {
+          setGridBoth(g0)
+          sfx.invalid()
+          await sleep(160)
+          return
         }
-      }
-      vibrate(10)
 
-      if (combo) {
-        // special + special weave: tiered fanfare, banner, bonus, then the blast
-        const tier = combo.kind === 'blackhole' ? 3 : combo.kind === 'lineStorm' || combo.kind === 'bombStorm' ? 2 : 1
-        sfx.combo(tier)
-        vibrate(24)
-        showCombo(1, comboLabel(combo.kind))
-        scoreRef.current += combo.bonus
-        setScore(scoreRef.current)
-        addFloater((a.r + b.r) / 2, (a.c + b.c) / 2, `+${combo.bonus}`)
-        triggerShake()
-        await blast({ cells: expandSpecials(g1, combo.cells), promotions: new Map() }, 0)
-        await cascadeLoop()
-      } else if (prismInvolved) {
-        await activatePrism(a, b)
-      } else {
-        await cascadeLoop([a, b])
+        if (!opts?.free) {
+          movesRef.current -= 1
+          setMovesLeft(movesRef.current)
+          // heartbeat as the loom runs out of moves (3 / 2 / 1)
+          if (movesRef.current >= 1 && movesRef.current <= 3 && urgentRef.current !== movesRef.current) {
+            urgentRef.current = movesRef.current
+            sfx.urgent()
+          }
+        }
+        vibrate(10)
+
+        if (combo) {
+          // special + special weave: tiered fanfare, banner, bonus, then the blast
+          const tier = combo.kind === 'blackhole' ? 3 : combo.kind === 'lineStorm' || combo.kind === 'bombStorm' ? 2 : 1
+          sfx.combo(tier)
+          vibrate(24)
+          showCombo(1, comboLabel(combo.kind))
+          scoreRef.current += combo.bonus
+          setScore(scoreRef.current)
+          addFloater((a.r + b.r) / 2, (a.c + b.c) / 2, `+${combo.bonus}`)
+          triggerShake()
+          await blast({ cells: expandSpecials(g1, combo.cells), promotions: new Map() }, 0)
+          await cascadeLoop()
+        } else if (prismInvolved) {
+          await activatePrism(a, b)
+        } else {
+          await cascadeLoop([a, b])
+        }
+        await afterMove()
+      } finally {
+        lock(false)
       }
-      await afterMove()
-      lock(false)
     },
     [
       activatePrism,
@@ -598,41 +606,42 @@ export function PlayScreen({
       sfx.nullify()
       vibrate(16)
 
-      const g = cloneGrid(gridRef.current)
-      const t = g[cell.r]?.[cell.c]
-      if (!t) {
-        lock(false)
-        return
-      }
-      t.clearing = true
-      setGridBoth(g)
-      await sleep(180)
+      // As with attemptSwap: the lock must be released on every exit path.
+      try {
+        const g = cloneGrid(gridRef.current)
+        const t = g[cell.r]?.[cell.c]
+        if (!t) return
+        t.clearing = true
+        setGridBoth(g)
+        await sleep(180)
 
-      applyClear(g, { cells: new Set([key(cell.r, cell.c)]), promotions: new Map() })
-      const grav = applyGravity(g, level.types)
-      setGridBoth(g)
-      if (grav.spawnedIds.length > 0) {
-        await nextPaint()
-        const g2 = cloneGrid(gridRef.current)
-        let dirty = false
-        for (const row of g2) {
-          for (const tl of row) {
-            if (tl && tl.spawned) {
-              delete tl.spawned
-              delete tl.spawnDrop
-              dirty = true
+        applyClear(g, { cells: new Set([key(cell.r, cell.c)]), promotions: new Map() })
+        const grav = applyGravity(g, level.types)
+        setGridBoth(g)
+        if (grav.spawnedIds.length > 0) {
+          await nextPaint()
+          const g2 = cloneGrid(gridRef.current)
+          let dirty = false
+          for (const row of g2) {
+            for (const tl of row) {
+              if (tl && tl.spawned) {
+                delete tl.spawned
+                delete tl.spawnDrop
+                dirty = true
+              }
             }
           }
+          if (dirty) setGridBoth(g2)
+          await sleep(400)
+        } else {
+          await sleep(230)
         }
-        if (dirty) setGridBoth(g2)
-        await sleep(400)
-      } else {
-        await sleep(230)
-      }
 
-      await cascadeLoop()
-      await afterMove()
-      lock(false)
+        await cascadeLoop()
+        await afterMove()
+      } finally {
+        lock(false)
+      }
     },
     [afterMove, cascadeLoop, level.cols, level.types, lock, setArmed, setGridBoth, setSelectedBoth, spendBooster, vibrate],
   )
@@ -651,9 +660,10 @@ export function PlayScreen({
     [level.cols, level.rows],
   )
 
-  const resetHintTimer = React.useCallback(() => {
+  /** (Re)arm the idle-hint countdown. Pure scheduling — no state written here, so
+      the activity effect below can call it without a synchronous setState. */
+  const armHintTimer = React.useCallback(() => {
     if (hintTimer.current) clearTimeout(hintTimer.current)
-    setHint(null)
     hintTimer.current = setTimeout(() => {
       if (busyRef.current || pausedRef.current || statusRef.current !== 'playing') return
       try {
@@ -665,13 +675,20 @@ export function PlayScreen({
     }, 6000)
   }, [])
 
+  /** Hide any visible hint and restart the countdown. Called from event handlers. */
+  const resetHintTimer = React.useCallback(() => {
+    setHint(null)
+    armHintTimer()
+  }, [armHintTimer])
+
   React.useEffect(() => {
-    resetHintTimer()
+    // Re-arm after activity. A showing hint is already cleared explicitly by the
+    // swap / nullify / pointer paths, so no state change is needed here.
+    armHintTimer()
     return () => {
       if (hintTimer.current) clearTimeout(hintTimer.current)
     }
-    // re-arm after activity
-  }, [score, movesLeft, busy, resetHintTimer])
+  }, [score, movesLeft, busy, armHintTimer])
 
   const onPointerDown = (e: React.PointerEvent) => {
     if (busyRef.current || pausedRef.current || statusRef.current !== 'playing') return

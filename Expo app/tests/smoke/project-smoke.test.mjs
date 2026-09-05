@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
@@ -53,4 +54,28 @@ test('native shell loads the packaged file URI, not localhost', () => {
   assert.doesNotMatch(src, /localhost:3000/)
   const screen = fs.readFileSync(path.join(expoRoot, 'src/screens/GameScreen.tsx'), 'utf8')
   assert.doesNotMatch(screen, /localhost:3000/)
+})
+
+/* The prebuild plugin is the last gate before an APK is assembled. If it only
+ * warns when web/ is missing, gradle happily packages an app with no game in
+ * it — so assert it refuses loudly instead. */
+test('withGameWebBundle refuses to prebuild without a synced web bundle', async () => {
+  const mod = await import('../../plugins/withGameWebBundle.js')
+  const withGameWebBundle = mod.default ?? mod
+
+  const config = withGameWebBundle({ name: 'wonderweave', slug: 'wonderweave' })
+  const dangerous = config?.mods?.android?.dangerous
+  assert.equal(typeof dangerous, 'function', 'plugin must register an android dangerous mod')
+
+  const emptyProject = fs.mkdtempSync(path.join(os.tmpdir(), 'ww-prebuild-'))
+  await assert.rejects(
+    () =>
+      dangerous({
+        modRequest: { projectRoot: emptyProject, platformProjectRoot: emptyProject },
+        modResults: {},
+      }),
+    /game:sync/,
+    'must fail with actionable guidance, not warn and continue',
+  )
+  fs.rmSync(emptyProject, { recursive: true, force: true })
 })

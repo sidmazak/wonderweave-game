@@ -40,6 +40,73 @@
   applyHydrate(global.__WW_HYDRATE__)
 
   /**
+   * React's inline RSC/Flight payload must ship byte-identical (rewriting inside it
+   * desyncs the Flight row bookkeeping → error #412), so it still carries
+   * root-absolute asset paths like "/_next/static/chunks/x.js". Under file:// those
+   * resolve to the device root (file:///_next/...) → ERR_FILE_NOT_FOUND →
+   * ChunkLoadError → React never hydrates and the loader sticks at 0% forever.
+   *
+   * Fix the URLs at the point of use instead of in the payload: any root-absolute
+   * packaged-asset path becomes document-relative before the WebView requests it.
+   */
+  ;(function installAbsoluteAssetPathFix() {
+    if (global.__WW_ABS_PATH_FIX__) return
+    global.__WW_ABS_PATH_FIX__ = true
+
+    var PACKAGED_ROOT = /^\/(?:_next|game|icons)\//
+
+    function fixUrl(value) {
+      if (typeof value !== 'string') return value
+      return PACKAGED_ROOT.test(value) ? '.' + value : value
+    }
+
+    // Chunk/CSS/font loads go through element src/href assignment.
+    var patchTargets = [
+      ['HTMLScriptElement', 'src'],
+      ['HTMLLinkElement', 'href'],
+      ['HTMLImageElement', 'src'],
+    ]
+    patchTargets.forEach(function (pair) {
+      var ctor = global[pair[0]]
+      if (!ctor || !ctor.prototype) return
+      var desc = Object.getOwnPropertyDescriptor(ctor.prototype, pair[1])
+      if (!desc || typeof desc.set !== 'function') return
+      try {
+        Object.defineProperty(ctor.prototype, pair[1], {
+          configurable: true,
+          enumerable: desc.enumerable,
+          get: desc.get,
+          set: function (value) {
+            desc.set.call(this, fixUrl(value))
+          },
+        })
+      } catch {
+        /* descriptor locked down — attribute patch below still applies */
+      }
+    })
+
+    if (global.Element && global.Element.prototype) {
+      var origSetAttribute = global.Element.prototype.setAttribute
+      global.Element.prototype.setAttribute = function (name, value) {
+        if (name === 'src' || name === 'href') value = fixUrl(value)
+        return origSetAttribute.call(this, name, value)
+      }
+    }
+
+    // Direct XHR callers (including the fetch polyfill below) get the same fix.
+    if (global.XMLHttpRequest && global.XMLHttpRequest.prototype) {
+      var origOpen = global.XMLHttpRequest.prototype.open
+      global.XMLHttpRequest.prototype.open = function (method, url) {
+        var args = Array.prototype.slice.call(arguments)
+        args[1] = fixUrl(url)
+        return origOpen.apply(this, args)
+      }
+    }
+
+    global.__WW_FIX_URL__ = fixUrl
+  })()
+
+  /**
    * Android WebView blocks window.fetch() for file:// URLs (TypeError: Failed to fetch)
    * while XMLHttpRequest succeeds. Next.js App Router hydration uses fetch for flight /
    * module wiring, so without this polyfill the splash stays at 0% forever.
@@ -50,9 +117,10 @@
     var nativeFetch = typeof global.fetch === 'function' ? global.fetch.bind(global) : null
 
     function resolveUrl(input) {
-      if (typeof input === 'string') return input
-      if (input && typeof input.url === 'string') return input.url
-      return String(input)
+      var fix = global.__WW_FIX_URL__ || function (v) { return v }
+      if (typeof input === 'string') return fix(input)
+      if (input && typeof input.url === 'string') return fix(input.url)
+      return fix(String(input))
     }
 
     function needsXhr(url) {
@@ -291,11 +359,11 @@
       'html.ww-native-shell .screen-header .ribbon::before{left:-14px !important;}' +
       'html.ww-native-shell .screen-header .ribbon::after{right:-14px !important;}' +
       'html.ww-native-shell .bottom-nav{padding-bottom:max(8px,var(--ww-inset-bottom,0px)) !important;}' +
-      'html.ww-native-shell body.ww-modal-open{overscroll-behavior:none;}' +
-      '@keyframes ww-native-load{0%{width:6%}40%{width:42%}70%{width:68%}100%{width:88%}}' +
-      'html.ww-native-shell [aria-label^="Loading Wonderweave"] .ww-loader-fill{' +
-      'animation:ww-native-load 2.8s ease-out forwards;' +
-      '}'
+      'html.ww-native-shell body.ww-modal-open{overscroll-behavior:none;}'
+    // NOTE: no synthetic loader animation here. The fill width is bound to real
+    // preload progress in LoadingScreen; a CSS animation would override that
+    // inline width (and `forwards` would pin it), desyncing the bar from the
+    // percentage. The built-in shine keeps it alive before hydration.
     ;(document.head || document.documentElement).appendChild(style)
   }
 

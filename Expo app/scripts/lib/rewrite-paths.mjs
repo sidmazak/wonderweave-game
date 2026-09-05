@@ -39,6 +39,88 @@ const PUBLIC_SITE_ORIGINS = [
   /https?:\/\/(?:www\.)?wonderweave\.app/gi,
 ]
 
+/**
+ * React's inline RSC/Flight hydration payload — `self.__next_f.push([id,"..."])` —
+ * embeds a length-sensitive replay stream inside an escaped JS string literal.
+ * Rewriting substrings inside it (asset paths, site origins, etc.) shortens or
+ * lengthens that string without updating the Flight protocol's internal row
+ * bookkeeping, which desyncs the client parser: the stream ends with chunks
+ * still "pending" and React throws "Connection closed" (minified error #412),
+ * hanging the app on the loading screen. The payload must pass through
+ * untouched — the already-rewritten DOM markup elsewhere in the same document
+ * is what the browser and hydration actually use for real src/href resolution.
+ */
+const NEXT_FLIGHT_PUSH = /self\.__next_f\.push\(\[\d+,("(?:[^"\\]|\\.)*")\]\)/g
+
+function protectFlightPayloads(text) {
+  const saved = []
+  const protectedText = text.replace(NEXT_FLIGHT_PUSH, (match) => {
+    const token = `__WW_FLIGHT_PAYLOAD_${saved.length}__`
+    saved.push(match)
+    return token
+  })
+  return { protectedText, saved }
+}
+
+function restoreFlightPayloads(text, saved) {
+  let out = text
+  for (let i = 0; i < saved.length; i++) {
+    out = out.replace(`__WW_FLIGHT_PAYLOAD_${i}__`, () => saved[i])
+  }
+  return out
+}
+
+/** Root-absolute packaged-asset dir inside a Flight row (skips already-relative `./dir/`). */
+const FLIGHT_ABSOLUTE_DIR = new RegExp(
+  `(?<![.\\w])/(${ABSOLUTE_DIRS.map((d) => d.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})/`,
+  'g',
+)
+
+/**
+ * Rewrite packaged-asset paths *inside* the Flight payload, row by row.
+ *
+ * The payload is a newline-separated stream of `id:<type><data>` rows. Only
+ * `T` rows carry a hex byte-length prefix (`2:T103c,…`); changing their content
+ * without updating that prefix desyncs React's parser (error #412, hang on the
+ * loading screen), so those are left byte-identical — the compat layer fixes
+ * their asset URLs at runtime instead. Every other row (notably `I` client
+ * references, whose chunk paths React resolves during hydration, and `H`
+ * preload hints) is plain JSON with no length bookkeeping and is safe to
+ * rewrite. Leaving `I` rows absolute is what strands hydration on file://.
+ */
+function rewriteFlightRows(text) {
+  let changes = 0
+  NEXT_FLIGHT_PUSH.lastIndex = 0
+  const out = text.replace(NEXT_FLIGHT_PUSH, (match, literal) => {
+    let decoded
+    try {
+      decoded = JSON.parse(literal)
+    } catch {
+      return match
+    }
+    if (typeof decoded !== 'string') return match
+
+    let rowChanges = 0
+    const rows = decoded.split('\n').map((row) => {
+      if (!row) return row
+      const colon = row.indexOf(':')
+      if (colon < 0) return row
+      // Length-prefixed text row — must stay byte-identical.
+      if (/^T[0-9a-f]*,/i.test(row.slice(colon + 1))) return row
+      // Only root-absolute paths: a leading `.` (already relative) is left alone,
+      // which keeps this pass idempotent.
+      const next = row.replace(FLIGHT_ABSOLUTE_DIR, (_full, dir) => `./${dir}/`)
+      if (next !== row) rowChanges += 1
+      return next
+    })
+
+    if (rowChanges === 0) return match
+    changes += rowChanges
+    return match.replace(literal, () => JSON.stringify(rows.join('\n')))
+  })
+  return { text: out, changes }
+}
+
 function lookbehindSafePrefix(source, index) {
   if (index <= 0) return true
   const prev = source[index - 1]
@@ -80,7 +162,9 @@ export function rewriteAbsolutePaths(text, options = {}) {
   const isJs = lower.endsWith('.js')
   const opts = { ...options, stylesheet }
   let changes = 0
-  let out = text.replace(LOCALHOST_ORIGIN, () => {
+
+  const { protectedText, saved } = protectFlightPayloads(text)
+  let out = protectedText.replace(LOCALHOST_ORIGIN, () => {
     changes += 1
     return '.'
   })
@@ -169,6 +253,14 @@ export function rewriteAbsolutePaths(text, options = {}) {
       }
     }
     out = next
+  }
+
+  out = restoreFlightPayloads(out, saved)
+
+  if (!isJs) {
+    const flight = rewriteFlightRows(out)
+    out = flight.text
+    changes += flight.changes
   }
 
   return { text: out, changes }

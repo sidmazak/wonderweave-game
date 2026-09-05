@@ -31,6 +31,16 @@ module.exports = {
         backgroundColor: '#101d13',
       },
       edgeToEdgeEnabled: true,
+      // Pulled in transitively (storage perms by expo-file-system, the overlay
+      // permission by React Native) but unused by this game: it is offline,
+      // reads only packaged assets, and saves to WebView localStorage. Leaving
+      // them declared misrepresents the app on the Play listing and in the Data
+      // safety form. VIBRATE and INTERNET are kept — both are actually used.
+      blockedPermissions: [
+        'android.permission.READ_EXTERNAL_STORAGE',
+        'android.permission.WRITE_EXTERNAL_STORAGE',
+        'android.permission.SYSTEM_ALERT_WINDOW',
+      ],
       predictiveBackGestureEnabled: false,
       softwareKeyboardLayoutMode: 'resize',
       allowBackup: true,

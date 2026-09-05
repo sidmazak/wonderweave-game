@@ -1,0 +1,42 @@
+# Every meta screen must render. These are the art-heavy screens that resolve
+# assets dynamically (chapter deco, lore deco, altar charms) — exactly the paths
+# static analysis cannot fully verify, so they need a device to prove out.
+appId: com.wonderweave.game
+name: All meta screens render
+---
+- launchApp:
+    clearState: true
+    stopApp: true
+
+- extendedWaitUntil:
+    visible: ".*continue your journey.*"
+    timeout: 60000
+
+- tapOn: "Map"
+- extendedWaitUntil:
+    visible: ".*Skyreach Isles.*"
+    timeout: 20000
+- takeScreenshot: artifacts/04-map
+
+- tapOn: "Codex"
+- extendedWaitUntil:
+    visible: "Lumens"
+    timeout: 20000
+- takeScreenshot: artifacts/04-codex
+
+- tapOn: "Relics"
+- extendedWaitUntil:
+    visible: ".*Ritual.*"
+    timeout: 20000
+- takeScreenshot: artifacts/04-relics
+
+- tapOn: "Daily"
+- extendedWaitUntil:
+    visible: ".*Daily.*"
+    timeout: 20000
+- takeScreenshot: artifacts/04-daily
+
+- tapOn: "Home"
+- extendedWaitUntil:
+    visible: ".*continue your journey.*"
+    timeout: 20000

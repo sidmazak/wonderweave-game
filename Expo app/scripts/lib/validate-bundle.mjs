@@ -18,6 +18,72 @@ const ALLOWED_REMOTE = [
 
 const IGNORED_SCHEMES = /^(data:|blob:|about:|javascript:|mailto:|#)/i
 
+/* ---------------------------------------------------------------------------
+ * Inline <script> auditing.
+ *
+ * The attribute/CSS/JS regexes above only see src= and href= values, so a
+ * root-absolute chunk URL living inside an inline script body is invisible to
+ * them. That is exactly how a bundle whose React never hydrated (every chunk
+ * 404ing at file:///_next/...) still reported ok:true.
+ *
+ * React's Flight payload is the interesting case: rows are `id:<type><data>`,
+ * and only `T` rows carry a hex byte-length prefix. A T row therefore cannot be
+ * path-rewritten without desyncing React's parser (error #412), so it keeps
+ * absolute paths and the compat layer fixes those at runtime — allowed here.
+ * Every other row (notably `I` client references, which React resolves during
+ * hydration) MUST be relative or the app hangs on the loading screen.
+ * ------------------------------------------------------------------------- */
+const INLINE_SCRIPT = /<script\b(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/gi
+const FLIGHT_PUSH = /self\.__next_f\.push\(\[\d+,("(?:[^"\\]|\\.)*")\]\)/g
+const PACKAGED_ABSOLUTE = /(?<![.\w])\/(?:_next|game|icons)\//
+
+/**
+ * @param {string} text full HTML document
+ * @returns {string[]} human-readable problems (empty when the document is safe)
+ */
+export function scanInlineScripts(text) {
+  const problems = []
+  INLINE_SCRIPT.lastIndex = 0
+  let script
+  while ((script = INLINE_SCRIPT.exec(text))) {
+    const body = script[1]
+    let sawFlight = false
+
+    FLIGHT_PUSH.lastIndex = 0
+    let push
+    while ((push = FLIGHT_PUSH.exec(body))) {
+      sawFlight = true
+      let decoded
+      try {
+        decoded = JSON.parse(push[1])
+      } catch {
+        continue
+      }
+      if (typeof decoded !== 'string') continue
+      for (const row of decoded.split('\n')) {
+        const colon = row.indexOf(':')
+        if (colon < 0) continue
+        // Length-prefixed text row — absolute paths here are handled at runtime.
+        if (/^T[0-9a-f]*,/i.test(row.slice(colon + 1))) continue
+        const hit = row.match(PACKAGED_ABSOLUTE)
+        if (hit) {
+          problems.push(
+            `flight row "${row.slice(0, 48)}${row.length > 48 ? '…' : ''}" keeps root-absolute ${hit[0]}`,
+          )
+        }
+      }
+    }
+
+    if (!sawFlight) {
+      const hit = body.match(PACKAGED_ABSOLUTE)
+      if (hit) {
+        problems.push(`inline script keeps root-absolute ${hit[0]}`)
+      }
+    }
+  }
+  return problems
+}
+
 /**
  * @param {string} webRoot
  */
@@ -96,6 +162,14 @@ export function validateBundle(webRoot) {
 
     if (/https?:\/\/localhost(?::\d+)?/i.test(text) && !rel.endsWith('.map')) {
       localhost.push(rel)
+    }
+
+    // Inline scripts are invisible to the attribute regexes below — audit them
+    // separately so a hydration-killing absolute chunk URL can never pass.
+    if (ext === '.html') {
+      for (const problem of scanInlineScripts(text)) {
+        missing.push(`${rel} → ${problem}`)
+      }
     }
 
     const refs = new Set()

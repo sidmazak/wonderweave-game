@@ -1,0 +1,49 @@
+# Enter a stage and prove the board is live and the engine actually resolves a
+# match. Selectors are aria-labels — see the note in 01-launch-and-load.yaml.
+appId: com.wonderweave.game
+name: Gameplay board loads and resolves a match
+---
+- launchApp:
+    clearState: true
+    stopApp: true
+
+- extendedWaitUntil:
+    visible: ".*continue your journey.*"
+    timeout: 60000
+- tapOn: ".*continue your journey.*"
+
+# HUD proves the stage mounted with real level data.
+- extendedWaitUntil:
+    visible: ".*weaving board.*"
+    timeout: 30000
+- assertVisible: "STAGE 1-1CHAPTER I"
+- assertVisible: "25 moves left"
+- assertVisible: "Score: 0"
+- assertVisible: "Star rating: 0 of 3"
+- assertVisible: "Reach 2,200 pts"
+- assertVisible: "Lens booster.*3 remaining.*"
+- assertVisible: "Unweave booster.*3 remaining.*"
+
+- takeScreenshot: artifacts/02-board
+
+# Pause opens and closes cleanly — guards the input-lock regression and the
+# modal focus trap. Done BEFORE any match: a large LENS cascade can clear the
+# objective outright, which replaces the board with the win modal, so asserting
+# on pause after a match is non-deterministic.
+- tapOn: "Pause"
+- extendedWaitUntil:
+    visible: "Resume"
+    timeout: 15000
+- tapOn: "Resume"
+- assertVisible: ".*weaving board.*"
+
+# LENS resolves a guaranteed valid match without spending a move — a
+# deterministic way to drive the engine (swipe targets depend on a randomised
+# board). Score leaving zero proves match → clear → gravity → scoring ran, and
+# holds whether play continues or the stage is sealed outright.
+- tapOn: "Lens booster.*"
+- extendedWaitUntil:
+    notVisible: "Score: 0"
+    timeout: 20000
+
+- takeScreenshot: artifacts/02-after-match

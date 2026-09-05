@@ -1,0 +1,57 @@
+# Progress written in one process must survive a full restart.
+#
+# Persistence cannot be checked from build output: saves live in WebView
+# localStorage (app-private internal storage), mirrored to AsyncStorage by the
+# native bridge. Every refactor of that layer has needed manual verification.
+#
+# The assertion deliberately avoids gameplay outcomes. An earlier version played
+# a match and then opened the pause menu, which was flaky: a large LENS cascade
+# can clear the objective outright, so the win modal appears instead of pause.
+# Entering a stage always discovers Pip (entity:lantern) regardless of the
+# randomised board, and the Codex counter renders that fact — a deterministic,
+# save-derived signal.
+appId: com.wonderweave.game
+name: Saves survive an app restart
+---
+- launchApp:
+    clearState: true
+    stopApp: true
+
+- extendedWaitUntil:
+    visible: ".*continue your journey.*"
+    timeout: 60000
+
+# Baseline: a fresh install has discovered nothing.
+- tapOn: "Codex"
+- extendedWaitUntil:
+    visible: ".*0 / 28 Discovered.*"
+    timeout: 20000
+- tapOn: "Home"
+- extendedWaitUntil:
+    visible: ".*continue your journey.*"
+    timeout: 20000
+
+# Entering a stage writes ww-codex (and ww-player-id / ww-player-name).
+- tapOn: ".*continue your journey.*"
+- extendedWaitUntil:
+    visible: ".*weaving board.*"
+    timeout: 30000
+
+# Restart WITHOUT clearing state — this is the actual persistence assertion.
+- launchApp:
+    clearState: false
+    stopApp: true
+
+- extendedWaitUntil:
+    visible: ".*continue your journey.*"
+    timeout: 60000
+- assertNotVisible: ".*Loading Wonderweave.*"
+
+# The discovery made before the restart must still be recorded.
+- tapOn: "Codex"
+- extendedWaitUntil:
+    visible: ".*Discovered.*"
+    timeout: 20000
+- assertNotVisible: ".*0 / 28 Discovered.*"
+
+- takeScreenshot: artifacts/03-after-restart

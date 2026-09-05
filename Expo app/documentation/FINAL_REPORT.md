@@ -23,9 +23,18 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md).
 
 ## Critical fixes
 
+> **Release signing is NOT configured.** `android/app/build.gradle` still ships
+> the template default, `release { signingConfig signingConfigs.debug }` — the
+> public Android debug key (`storePassword 'android'`). Builds produced this way
+> are fine for sideloading and testing, but **cannot be published to Google
+> Play**. Generate an upload keystore and wire in a real release signingConfig
+> before any store submission.
+
 | Issue | Fix |
 | --- | --- |
-| Splash stuck at 0% | Relative `TURBOPACK_CHUNK_BASE_PATH="./_next/"` + `fetch`→XHR polyfill |
+| Splash stuck at 0% (chunk base path) | Relative `TURBOPACK_CHUNK_BASE_PATH="./_next/"` + `fetch`→XHR polyfill |
+| Splash stuck at 0% (flight payload) | `rewriteFlightRows()` rewrites RSC `I`/`H` rows; `T` rows stay byte-identical and are fixed at runtime by `__ww_compat.js` |
+| Loader bar disagreed with the percentage | Removed the synthetic CSS fill animation and the duplicate CSS width transition; the bar is bound to real preload progress only |
 | Side letterbox bars | Native shell disables desktop `max-width: 480px` |
 | Back / title misaligned | `ScreenHeader` grid row (Next.js + CSS) |
 | “Wonderweave” text flash at launch | Image-only RN boot overlay; native splash hides after READY |
@@ -73,7 +82,7 @@ JDK **17** required for Gradle. See [ENVIRONMENT.md](./ENVIRONMENT.md).
 | Full-bleed layout | **PASS** |
 | Header alignment | **PASS** |
 | Visual (manual screenshots) | **PASS** |
-| Release build | **PASS** |
+| Release build | **PARTIAL** — builds and installs, but debug-signed (see warning above) |
 | Persistence | **PASS** |
 | Offline launch | **PASS** |
 | Automated pixel-diff vs Chrome | **NOT TESTED** |

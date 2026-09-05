@@ -67,3 +67,13 @@ Expo app/test-artifacts/logs/
 # Misc local scratch
 test
 prompt
+
+# Local device/emulator captures (screenshots taken while debugging)
+/emulator-*.png
+/ww-*.png
+/now.png
+
+# Maestro run output (screenshots/recordings written next to the flows)
+artifacts/
+.maestro/artifacts/
+Expo app/artifacts/

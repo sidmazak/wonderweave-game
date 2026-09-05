@@ -1,0 +1,38 @@
+# Cold launch must reach the Home screen.
+#
+# This is the flow that would have caught the hydration outage: the packaged
+# bundle validated clean, all unit tests passed, and the app still hung forever
+# on "WEAVING THE WORLD… 0%" because React never hydrated. Only asserting that
+# real gameplay UI appears on a device catches that.
+#
+# NOTE ON SELECTORS: the game runs in a WebView. Android exposes WebView nodes
+# through the accessibility tree, so Maestro sees them — but an element's
+# accessible name is its `aria-label`, which overrides the visible text. Target
+# aria-labels (e.g. "Play — continue your journey"), not on-screen words
+# ("PLAY"). Dump the live tree with `maestro hierarchy` when adding assertions.
+appId: com.wonderweave.game
+name: Launch reaches Home (hydration smoke)
+---
+- launchApp:
+    clearState: true          # fresh-install behaviour, no carried-over saves
+    stopApp: true
+
+- extendedWaitUntil:
+    visible: ".*continue your journey.*"
+    timeout: 60000
+
+- assertVisible: ".*continue your journey.*"
+- assertVisible: "How to Play"
+- assertVisible: "Wonderweave game"
+
+# Bottom navigation proves the meta shell mounted, not just a static splash.
+- assertVisible: "Home"
+- assertVisible: "Map"
+- assertVisible: "Codex"
+- assertVisible: "Relics"
+- assertVisible: "Daily"
+
+# The loader must be gone — a stuck loader is the exact regression we guard.
+- assertNotVisible: ".*Loading Wonderweave.*"
+
+- takeScreenshot: artifacts/01-home

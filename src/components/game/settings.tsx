@@ -36,30 +36,61 @@ interface SettingsCtx {
 
 const Ctx = React.createContext<SettingsCtx | null>(null)
 
-export function SettingsProvider({ children }: { children: React.ReactNode }) {
-  const [settings, setSettings] = React.useState<WWSettings>(DEFAULT_SETTINGS)
-  const [ready, setReady] = React.useState(false)
+/**
+ * localStorage is an external store, so it is read through useSyncExternalStore
+ * rather than hydrated with a setState inside an effect. React uses the server
+ * snapshot (defaults) while hydrating — matching the prerendered markup, which
+ * depends on `particles` for the root class — then swaps to the stored values.
+ */
+let snapshot: WWSettings = DEFAULT_SETTINGS
+let hydrated = false
+const listeners = new Set<() => void>()
 
-  React.useEffect(() => {
-    const loaded = load()
-    setSettings(loaded)
-    setSfxVolume(loaded.sfxVol)
-    setMusicVolume(loaded.musicVol)
-    setReady(true)
-  }, [])
+function emit(): void {
+  for (const listener of listeners) listener()
+}
+
+function subscribeToSettings(onChange: () => void): () => void {
+  listeners.add(onChange)
+  if (!hydrated) {
+    hydrated = true
+    snapshot = load()
+    setSfxVolume(snapshot.sfxVol)
+    setMusicVolume(snapshot.musicVol)
+    // Notify after the current commit so subscribers pick up the stored values.
+    queueMicrotask(emit)
+  }
+  return () => {
+    listeners.delete(onChange)
+  }
+}
+
+const getSettingsSnapshot = (): WWSettings => snapshot
+const getSettingsServerSnapshot = (): WWSettings => DEFAULT_SETTINGS
+
+/** Apply a settings patch: persist it, push volumes to the audio graph, notify. */
+function writeSettings(patch: Partial<WWSettings>): void {
+  snapshot = { ...snapshot, ...patch }
+  try {
+    localStorage.setItem(LS_KEY, JSON.stringify(snapshot))
+  } catch {
+    /* ignore */
+  }
+  if (patch.sfxVol !== undefined) setSfxVolume(patch.sfxVol)
+  if (patch.musicVol !== undefined) setMusicVolume(patch.musicVol)
+  emit()
+}
+
+export function SettingsProvider({ children }: { children: React.ReactNode }) {
+  const settings = React.useSyncExternalStore(
+    subscribeToSettings,
+    getSettingsSnapshot,
+    getSettingsServerSnapshot,
+  )
+  const ready = settings !== DEFAULT_SETTINGS || hydrated
 
   const update = React.useCallback((patch: Partial<WWSettings>) => {
-    setSettings((prev) => {
-      const next = { ...prev, ...patch }
-      try {
-        localStorage.setItem(LS_KEY, JSON.stringify(next))
-      } catch {
-        /* ignore */
-      }
-      if (patch.sfxVol !== undefined) setSfxVolume(patch.sfxVol)
-      if (patch.musicVol !== undefined) setMusicVolume(patch.musicVol)
-      return next
-    })
+    writeSettings(patch)
   }, [])
 
   const value = React.useMemo(() => ({ settings, update, ready }), [settings, update, ready])

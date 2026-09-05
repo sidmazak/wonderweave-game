@@ -7,6 +7,9 @@
       "esnext"
     ],
     "allowJs": true,
+    // Node's --experimental-strip-types resolves real files, so tests import
+    // "./engine.ts" explicitly. Safe with noEmit: nothing is rewritten.
+    "allowImportingTsExtensions": true,
     "skipLibCheck": true,
     "strict": true,
     "noEmit": true,

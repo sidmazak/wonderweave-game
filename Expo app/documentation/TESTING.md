@@ -13,11 +13,35 @@ npm run test                 # all of the above Node suites
 npm run test:e2e             # emulator / device when ADB is available
 ```
 
+## Game engine tests (repo root)
+
+The match-3 engine and save layer are tested from the repo root, against the
+real TypeScript source via Node's type stripping — no bundler, no new deps:
+
+```bash
+npm test            # from the repo root
+```
+
+| File | Covers |
+| --- | --- |
+| `tests/engine.test.ts` | Match detection, 4→line / 5→prism / L→bomb promotion, clear planning, gravity (no holes, survivors fall), special chaining, dead-board detection, shuffle rescue, full special×special combo matrix |
+| `tests/progression.test.ts` | Save-schema migration (fresh / current / newer-client clamp / corrupt / read-only storage), objectives, star thresholds, level determinism, chapter partitioning |
+
+## Device E2E (Maestro)
+
+```bash
+cd "Expo app" && npm run test:maestro
+```
+
+Black-box flows that drive the installed APK. These exist because every other
+gate here can be green while the shipped app is dead — see `.maestro/README.md`,
+including the WebView selector rule (**target `aria-label`, not visible text**).
+
 ## Suites
 
 | Suite | What it proves |
 | --- | --- |
-| Unit | Path rewrite, bridge validation, backup merge |
+| Unit | Path rewrite (incl. RSC flight rows + T-row byte-integrity), inline-script auditing, bridge validation, backup merge |
 | White-box | Compat contracts, GameScreen guards, save edge cases, full-bleed / ribbon CSS |
 | Integration | Packaged `web/` is self-contained (no localhost runtime dependency) |
 | Smoke | Required project files + local WebView URI |

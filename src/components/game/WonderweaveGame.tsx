@@ -55,11 +55,32 @@ function GameRoot() {
   /* ------- real asset preloading (drives the loading screen) ------- */
   const [loadPct, setLoadPct] = React.useState(0)
   const preloadRef = React.useRef<PreloadHandle | null>(null)
+  /** Real progress target (0..100). The displayed value eases toward this. */
+  const loadTargetRef = React.useRef(0)
   React.useEffect(() => {
     if (screen !== 'splash' || preloadRef.current) return
-    const handle = preloadGame((p) => setLoadPct(Math.round(p * 100)))
+    const handle = preloadGame((p) => {
+      loadTargetRef.current = Math.max(loadTargetRef.current, p * 100)
+    })
     preloadRef.current = handle
     void handle.done
+  }, [screen])
+
+  /* Ease the shown percentage toward real progress so the bar glides instead of
+     stepping. Committing state only when the whole number changes keeps this to
+     ≤100 renders — the CSS width transition covers the frames in between. */
+  React.useEffect(() => {
+    if (screen !== 'splash') return
+    let shown = 0
+    let raf = requestAnimationFrame(function tick() {
+      const target = loadTargetRef.current
+      if (shown < target) {
+        shown = Math.min(target, shown + Math.max(0.5, (target - shown) * 0.14))
+        setLoadPct((prev) => (Math.round(shown) !== prev ? Math.round(shown) : prev))
+      }
+      raf = requestAnimationFrame(tick)
+    })
+    return () => cancelAnimationFrame(raf)
   }, [screen])
 
   /* no "tap to begin" gate — glide straight into the world once it is woven */
@@ -96,6 +117,7 @@ function GameRoot() {
     setChapterId(1)
     setLevelId(1)
     setPlayAttempt(0)
+    loadTargetRef.current = 0
     setLoadPct(0)
     setResetting(true)
     setScreen('splash')
@@ -329,8 +351,10 @@ function LoadingScreen({ pct, resetting = false }: { pct: number; resetting?: bo
 
         {/* parchment plaque with the real loader */}
         <div className="mt-8 w-[260px] max-w-[80vw] goal-card px-4 py-3 text-center anim-float">
-          <p className="font-display font-extrabold uppercase tracking-[0.2em] text-[#5d3a1a] text-xs mb-2">
-            {resetting ? 'Reweaving the folio…' : 'Weaving the world…'} {pct}%
+          {/* nowrap + fixed-width figures: the line never reflows as 0% → 100% */}
+          <p className="font-display font-extrabold uppercase tracking-[0.12em] text-[#5d3a1a] text-xs mb-2 whitespace-nowrap flex items-baseline justify-center gap-1.5">
+            <span className="truncate">{resetting ? 'Reweaving the folio…' : 'Weaving the world…'}</span>
+            <span className="tabular-nums shrink-0">{pct}%</span>
           </p>
           <div
             className="ww-loader-track"
