@@ -57,47 +57,129 @@ async function squareIcon(size, dest) {
 }
 
 /**
- * Maskable / adaptive icon.
+ * Locate the illustrated subject (Pip + his lantern) and measure how far it
+ * reaches from its own centre.
  *
- * Deliberately full-bleed rather than inset. Insetting the art and padding with
- * a flat colour leaves a visible square seam, because the artwork's own
- * background is a lighter green than #101d13. Measured against this master, the
- * bunny, both ear tips and the lantern all fall inside the circle inscribed in
- * the canvas, so a circular mask only crops the corner starfield — which reads
- * as intentional vignetting. Content stays safe and there is no seam.
+ * Both the launcher icon and the Android 12+ system splash are masked to a
+ * circle by the OS — that cannot be disabled. The only way to guarantee an ear,
+ * a foot or the lantern is never clipped is to measure the subject and scale it
+ * to fit that circle, rather than guessing a safe-zone percentage. Measured at
+ * runtime so replacing the artwork cannot silently break the fit.
  */
-async function maskableIcon(size, dest) {
-  fs.mkdirSync(path.dirname(dest), { recursive: true })
-  await sharp(ICON_SRC)
-    .resize(size, size, { fit: 'cover' })
-    .flatten({ background: BG })
-    .png()
-    .toFile(dest)
-  log(dest, `${size}x${size} full-bleed maskable`)
+let subjectCache = null
+async function measureSubject() {
+  if (subjectCache) return subjectCache
+
+  const { data, info } = await sharp(ICON_SRC).removeAlpha().raw().toBuffer({ resolveWithObject: true })
+  const { width, height, channels } = info
+
+  // The painted field is a dark green vignette and the subject is far brighter;
+  // 150 sits between them and excludes the faint background stars.
+  const THRESHOLD = 150
+  const xs = []
+  const ys = []
+  let minX = width
+  let minY = height
+  let maxX = 0
+  let maxY = 0
+
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const i = (y * width + x) * channels
+      const lum = 0.2126 * data[i] + 0.7152 * data[i + 1] + 0.0722 * data[i + 2]
+      if (lum > THRESHOLD) {
+        xs.push(x)
+        ys.push(y)
+        if (x < minX) minX = x
+        if (x > maxX) maxX = x
+        if (y < minY) minY = y
+        if (y > maxY) maxY = y
+      }
+    }
+  }
+  if (xs.length === 0) throw new Error('Could not locate the subject in the icon master')
+
+  const cx = (minX + maxX) / 2
+  const cy = (minY + maxY) / 2
+  let maxRadius = 0
+  for (let i = 0; i < xs.length; i++) {
+    const r = Math.hypot(xs[i] - cx, ys[i] - cy)
+    if (r > maxRadius) maxRadius = r
+  }
+
+  // Also measure the subject's reach from the IMAGE centre. Scaling the whole
+  // illustration about its centre keeps its painted background continuous, which
+  // avoids the seam you get from cropping to the subject box (the crop cuts
+  // through the starfield and the edge shows).
+  const imgCx = width / 2
+  const imgCy = height / 2
+  let maxRadiusFromImageCentre = 0
+  for (let i = 0; i < xs.length; i++) {
+    const r = Math.hypot(xs[i] - imgCx, ys[i] - imgCy)
+    if (r > maxRadiusFromImageCentre) maxRadiusFromImageCentre = r
+  }
+
+  // Mean colour of the outermost ring, used to pad without a visible seam.
+  const band = Math.max(2, Math.round(Math.min(width, height) * 0.02))
+  let rSum = 0
+  let gSum = 0
+  let bSum = 0
+  let n = 0
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      if (x >= band && x < width - band && y >= band && y < height - band) continue
+      const i = (y * width + x) * channels
+      rSum += data[i]
+      gSum += data[i + 1]
+      bSum += data[i + 2]
+      n++
+    }
+  }
+
+  subjectCache = {
+    left: minX,
+    top: minY,
+    width: maxX - minX + 1,
+    height: maxY - minY + 1,
+    maxRadius,
+    maxRadiusFromImageCentre,
+    imageWidth: width,
+    imageHeight: height,
+    edge: { r: Math.round(rSum / n), g: Math.round(gSum / n), b: Math.round(bSum / n), alpha: 1 },
+  }
+  console.log(
+    `subject: ${subjectCache.width}x${subjectCache.height} at ${minX},${minY} — reach ${Math.round(maxRadius)}px`,
+  )
+  return subjectCache
 }
 
 /**
- * Splash artwork: full-bleed, with the edges feathered to transparent so the
- * square melts into the splash background instead of showing as a tile.
+ * Render the subject centred and scaled so its furthest point stays inside the
+ * circle inscribed in the canvas, over a colour-matched blurred backdrop (a
+ * flat fill would show a square seam against the artwork's lighter green).
+ * `safety` leaves headroom for launchers whose mask is tighter than a circle.
  */
-async function splashIcon(size, dest) {
+async function circleSafeIcon(size, dest, safety = 0.94) {
   fs.mkdirSync(path.dirname(dest), { recursive: true })
-  const fade = `<svg width="${size}" height="${size}" xmlns="http://www.w3.org/2000/svg">
-    <defs>
-      <radialGradient id="f" cx="50%" cy="50%" r="50%">
-        <stop offset="0%" stop-color="#fff" stop-opacity="1"/>
-        <stop offset="72%" stop-color="#fff" stop-opacity="1"/>
-        <stop offset="100%" stop-color="#fff" stop-opacity="0"/>
-      </radialGradient>
-    </defs>
-    <rect width="${size}" height="${size}" fill="url(#f)"/>
-  </svg>`
-  await sharp(ICON_SRC)
-    .resize(size, size, { fit: 'cover' })
-    .composite([{ input: Buffer.from(fade), blend: 'dest-in' }])
+  const subject = await measureSubject()
+
+  // Shrink the whole illustration about its centre until the subject's furthest
+  // point sits inside the mask circle. Keeping the full frame (rather than
+  // cropping to the subject) means its painted background stays continuous.
+  const scale = ((size / 2) * safety) / subject.maxRadiusFromImageCentre
+  const w = Math.max(1, Math.round(subject.imageWidth * scale))
+  const h = Math.max(1, Math.round(subject.imageHeight * scale))
+
+  const art = await sharp(ICON_SRC).resize(w, h).toBuffer()
+
+  await sharp({
+    create: { width: size, height: size, channels: 4, background: subject.edge },
+  })
+    .composite([{ input: art, left: Math.round((size - w) / 2), top: Math.round((size - h) / 2) }])
+    .flatten({ background: subject.edge })
     .png()
     .toFile(dest)
-  log(dest, `${size}x${size} feathered splash`)
+  log(dest, `${size}x${size} art ${w}x${h} — subject fits circle, nothing clipped`)
 }
 
 /** Social preview: Pip on the left, wordmark on the right. */
@@ -158,14 +240,16 @@ async function main() {
   await squareIcon(32, path.join(OUT.iconsDir, 'favicon-32.png'))
   await squareIcon(192, path.join(OUT.iconsDir, 'icon-192.png'))
   await squareIcon(512, path.join(OUT.iconsDir, 'icon-512.png'))
-  await maskableIcon(512, path.join(OUT.iconsDir, 'icon-maskable-512.png'))
+  await circleSafeIcon(512, path.join(OUT.iconsDir, 'icon-maskable-512.png'))
   await squareIcon(16, OUT.faviconIco)
 
   /* ---- Expo / Android ---- */
   // Launcher + Play listing icon: opaque, full bleed.
   await squareIcon(1024, path.join(EXPO, 'icon.png'))
-  await maskableIcon(1024, path.join(EXPO, 'adaptive-icon.png'))
-  await splashIcon(1024, path.join(EXPO, 'splash-icon.png'))
+  await circleSafeIcon(1024, path.join(EXPO, 'adaptive-icon.png'))
+  // Android 12+ masks the system splash icon to a circle as well, so it needs
+  // the same fit — otherwise the OS trims ears and feet.
+  await circleSafeIcon(1024, path.join(EXPO, 'splash-icon.png'))
   await squareIcon(48, path.join(EXPO, 'favicon.png'))
 
   await writeOg()
