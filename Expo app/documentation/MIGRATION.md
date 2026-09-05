@@ -14,7 +14,7 @@ Start here for humans: [../README.md](../README.md) · docs index: [README.md](.
 | Assets | `public/game/assets/*.webp` via `A()` helper (`/game/assets/…?v=10`) | Copied into `web/game/assets`; paths rewritten to `./game/assets` | **PASS** |
 | Audio | Web Audio API generative music/SFX (`src/lib/game/sound.ts`); no audio files | Same Web Audio graph; unlock on first pointer; lifecycle suspend via `visibilitychange` shim | **PASS** (gesture-gated) |
 | Persistence | `localStorage` keys `ww-*` | Keep localStorage; mirror to AsyncStorage backup; hydrate on boot | **PASS** |
-| Session | `sessionStorage` preload flag `ww-preloaded-v10` | Unchanged inside WebView session | **PASS** |
+| Session | `sessionStorage` preload flag `ww-preloaded-v11` | Unchanged inside WebView session | **PASS** |
 | Fonts | `next/font/google` Geist + Geist Mono (self-hosted at export); UI display stack Palatino/Georgia/serif | Geist woff2 in `_next/static/media`; Palatino is a system fallback | **PARTIAL** (Palatino) |
 | Canvas/WebGL | None (DOM/CSS board) | N/A | N/A |
 | Pointer | Pointer Events on the board (`touch-none`) | Unchanged | **PASS** |
@@ -60,7 +60,7 @@ Start here for humans: [../README.md](../README.md) · docs index: [README.md](.
 | `ww-settings` | `{ musicVol, sfxVol, vibrations, particles }` |
 | `ww-codex` | Discovered entry ids |
 | `ww-codex-seen` | Last-seen codex count (badge) |
-| `ww-preloaded-v10` | sessionStorage only |
+| `ww-preloaded-v11` | sessionStorage only |
 
 ## Assets
 

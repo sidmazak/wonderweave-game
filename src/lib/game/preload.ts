@@ -22,7 +22,9 @@ export interface PreloadHandle {
   cancel: () => void
 }
 
-const SESSION_KEY = 'ww-preloaded-v10'
+/** Keep the suffix in step with ASSET_VERSION so bumped art is re-preloaded
+    instead of being skipped and popping in lazily. */
+const SESSION_KEY = 'ww-preloaded-v11'
 const MAX_RETRIES = 1
 
 /** Clear the session preload flag so the loader runs again (e.g. after reset). */
