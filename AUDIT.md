@@ -338,9 +338,26 @@ loading screen sit on one of these. Fixing it needs new source art at ~1280px
 wide, not a resample of what ships today. Tiles (~50px, drawn at ~127 device px)
 are the second-order case.
 
-The two chapter decorations that were replaced in this pass — `deco-tree` and
-`deco-moon` — now ship at 448px against a 176 CSS px render box, which is the
-ratio the rest of the art should be held to.
+### Open: five chapter decorations are undersized
+
+`ChapterScreen` draws its decoration in a `w-44` box, measured at 179 CSS px on
+device. Five of the eight decorations are narrower than that source-side, so
+they are upscaled before the display's pixel ratio is even applied:
+
+| Asset | Source width | Chapters affected |
+| --- | --- | --- |
+| `deco-sign` | 78px | IX (Ruins) |
+| `deco-lamp` | 90px | VII (Altar) |
+| `deco-waterfall` | 102px | IV (Sunset) |
+| `deco-arch` | 118px | V, XI (Arch) |
+| `deco-island` | 152px | I, VI (Sky) |
+
+`tests/progression.test.ts` pins this set. The list may only shrink: adding a
+new undersized decoration fails the suite, and replacing one of these also fails
+until it is removed from the list, so the backlog cannot quietly persist.
+
+`deco-tree` (324px) and `deco-moon` (247px) were replaced in this pass and both
+clear the box.
 
 ---
 

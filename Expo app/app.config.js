@@ -2,7 +2,7 @@ module.exports = {
   expo: {
     name: 'Wonderweave: Match-3 Puzzle',
     slug: 'wonderweave',
-    version: '0.2.6',
+    version: '0.2.7',
     description:
       'Cozy offline match-3 puzzle adventure. Swap charms, chain combos, explore floating isles with Pip the lantern bunny — play anytime without an always-online grind.',
     orientation: 'portrait',
@@ -23,7 +23,7 @@ module.exports = {
     },
     android: {
       package: 'com.wonderweave.game',
-      versionCode: 26,
+      versionCode: 27,
       // Launcher label (keep concise for home screen)
       label: 'Wonderweave',
       adaptiveIcon: {

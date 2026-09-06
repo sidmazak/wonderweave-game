@@ -24,7 +24,7 @@ export interface PreloadHandle {
 
 /** Keep the suffix in step with ASSET_VERSION so bumped art is re-preloaded
     instead of being skipped and popping in lazily. */
-const SESSION_KEY = 'ww-preloaded-v12'
+const SESSION_KEY = 'ww-preloaded-v13'
 const MAX_RETRIES = 1
 
 /** Clear the session preload flag so the loader runs again (e.g. after reset). */

@@ -19,6 +19,7 @@ import {
   CHAPTERS,
   LEVELS_PER_CHAPTER,
   chapterOf,
+  chapterDecoKey,
   getLevel,
   nextLevelId,
   stageInChapter,
@@ -218,4 +219,69 @@ test('the observed device win resolves exactly as the modal reported it', () => 
   assert.equal(won, true)
   assert.equal(final, 5460)
   assert.equal(starsFor(scoreLevel, final, won), 3)
+})
+
+/* ---------------------------------------------------------------------------
+ * Chapter decoration art
+ *
+ * Every chapter paints one decoration chosen from its backdrop key. A typo in
+ * that mapping, or art that is renamed without updating it, produces a silently
+ * broken image on the chapter screen rather than an error — locked chapters are
+ * also awkward to reach by hand, so this is checked here instead.
+ * ------------------------------------------------------------------------- */
+test('every chapter maps to a decoration that ships', async () => {
+  const { readdirSync } = await import('node:fs')
+  const shipped = new Set(
+    readdirSync('public/game/assets')
+      .filter((f) => f.endsWith('.webp'))
+      .map((f) => f.replace('.webp', '')),
+  )
+  for (const ch of CHAPTERS) {
+    const key = chapterDecoKey(ch.bg)
+    assert.ok(shipped.has(key), `chapter ${ch.id} (${ch.bg}) wants ${key}.webp, which is not in public/game/assets`)
+  }
+})
+
+test('forest and night chapters use the tree and the moon', () => {
+  assert.equal(chapterDecoKey('bg-forest'), 'deco-tree')
+  assert.equal(chapterDecoKey('bg-night'), 'deco-moon')
+  // Both are reached by real chapters, so the art is actually seen in play.
+  assert.ok(CHAPTERS.some((c) => c.bg === 'bg-forest'), 'no chapter uses bg-forest')
+  assert.ok(CHAPTERS.some((c) => c.bg === 'bg-night'), 'no chapter uses bg-night')
+})
+
+/**
+ * ChapterScreen renders the decoration in a w-44 box, measured at 179 CSS px on
+ * device, before the display's own pixel ratio is applied. Anything narrower is
+ * being upscaled.
+ *
+ * Five decorations are still below that. They are pinned here rather than
+ * ignored: the set may only shrink. Adding a new undersized decoration fails,
+ * and replacing one of these with proper art also fails until it is removed
+ * from the list, so the debt cannot quietly persist.
+ */
+const RENDER_BOX = 176
+const KNOWN_UNDERSIZED = ['deco-arch', 'deco-island', 'deco-lamp', 'deco-sign', 'deco-waterfall']
+
+test('no decoration is undersized except the known backlog', async () => {
+  const sharp = (await import('sharp')).default
+  const undersized = new Set<string>()
+  for (const ch of CHAPTERS) {
+    const key = chapterDecoKey(ch.bg)
+    const m = await sharp(`public/game/assets/${key}.webp`).metadata()
+    if ((m.width ?? 0) < RENDER_BOX) undersized.add(key)
+  }
+  assert.deepEqual(
+    [...undersized].sort(),
+    KNOWN_UNDERSIZED,
+    'the undersized-decoration list changed — shrink KNOWN_UNDERSIZED when art is fixed, and never grow it',
+  )
+})
+
+test('the replaced tree and moon clear the render box', async () => {
+  const sharp = (await import('sharp')).default
+  for (const key of ['deco-tree', 'deco-moon']) {
+    const m = await sharp(`public/game/assets/${key}.webp`).metadata()
+    assert.ok((m.width ?? 0) >= RENDER_BOX, `${key} is ${m.width}px, under the ${RENDER_BOX}px box`)
+  }
 })

@@ -8,7 +8,7 @@ import type { Special, TileType } from './types'
  * Bump ASSET_VERSION whenever art files on disk are replaced (e.g. after the
  * asset eraser pass) so browsers don't serve stale cached WebPs.
  */
-export const ASSET_VERSION = 12
+export const ASSET_VERSION = 13
 
 export const A = (name: string): string => `/game/assets/${name}.webp?v=${ASSET_VERSION}`
 
