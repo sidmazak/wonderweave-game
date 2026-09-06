@@ -338,6 +338,22 @@ loading screen sit on one of these. Fixing it needs new source art at ~1280px
 wide, not a resample of what ships today. Tiles (~50px, drawn at ~127 device px)
 are the second-order case.
 
+### Closed: the chapter decoration was clipped at the top
+
+The decoration sits at the top of a clipped `overflow-y-auto` container with 4px
+of margin, while `anim-float` lifts it 14px and rotates it 1.5deg — roughly 17px
+of travel. It never showed because the shipped art happened to carry empty
+transparent pixels above the subject, which absorbed the motion. Cropping the
+replacement tree tightly to its alpha bounds removed that slack and the canopy
+started losing its top edge on every cycle.
+
+Fixed in the layout rather than the asset: `.anim-float-clearance` reserves the
+travel as space, so any decoration is safe however it is cropped. Measured on
+device at the peak of the bob with the tallest decoration loaded — 3.7px of
+clearance remaining, no clipping. Two tests now read the lift and the rotation
+out of the stylesheet and assert the reserved space covers them, so changing the
+animation without changing the clearance fails.
+
 ### Open: five chapter decorations are undersized
 
 `ChapterScreen` draws its decoration in a `w-44` box, measured at 179 CSS px on

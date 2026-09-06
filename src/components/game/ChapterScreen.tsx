@@ -57,7 +57,9 @@ export function ChapterScreen({
           alt=""
           aria-hidden
           draggable={false}
-          className="w-44 mx-auto my-1 anim-float drop-shadow-2xl pointer-events-none select-none"
+          // anim-float-clearance reserves the bob's travel; this sits at the top
+          // of a clipped scroll container and would otherwise lose its top edge.
+          className="w-44 mx-auto anim-float-clearance mb-1 anim-float drop-shadow-2xl pointer-events-none select-none"
         />
         <div className="px-5 pb-4">
           <div className="grid grid-cols-3 gap-3">

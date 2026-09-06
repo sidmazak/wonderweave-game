@@ -447,6 +447,28 @@ button.stage-pill:active {
 @keyframes ww-float-y { 0%, 100% { transform: translateY(0) rotate(-1.5deg); } 50% { transform: translateY(-14px) rotate(1.5deg); } }
 .anim-float { animation: ww-float-y 5s ease-in-out infinite; }
 
+/**
+ * Space reserved above a floating element so its own motion cannot be clipped
+ * by a scrolling ancestor.
+ *
+ * ww-float-y lifts by 14px and rotates by 1.5deg. For the 176px-wide chapter
+ * decoration that rotation raises the top corner by a further
+ * (176/2) * sin(1.5deg) ~= 2.3px, so ~17px of travel needs clearing; 20px
+ * leaves headroom for a wider element.
+ *
+ * This lives in the layout on purpose. It used to work only because the art
+ * happened to carry empty transparent pixels above the subject, so cropping a
+ * replacement tightly to its alpha bounds silently cut the top off the tree.
+ * Reserving the travel as space means any decoration is safe however it is
+ * cropped.
+ */
+.anim-float-clearance { margin-top: 20px; }
+
+@media (prefers-reduced-motion: reduce) {
+  /* .anim-float is disabled below, so the reserved travel is dead space. */
+  .anim-float-clearance { margin-top: 0.25rem; }
+}
+
 @keyframes ww-drift { from { transform: translateX(-8%); } to { transform: translateX(108%); } }
 .anim-drift { animation: ww-drift linear infinite; }
 

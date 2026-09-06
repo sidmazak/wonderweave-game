@@ -285,3 +285,53 @@ test('the replaced tree and moon clear the render box', async () => {
     assert.ok((m.width ?? 0) >= RENDER_BOX, `${key} is ${m.width}px, under the ${RENDER_BOX}px box`)
   }
 })
+
+/**
+ * The floating decoration sits at the top of a clipped scroll container, so the
+ * space reserved above it must cover the travel of its own animation. This
+ * previously held only because the art carried empty pixels above the subject,
+ * and cropping a replacement tightly to its alpha bounds cut the top off the
+ * tree with nothing failing. Both numbers are read from the stylesheet so the
+ * relationship is checked rather than assumed.
+ */
+test('float clearance covers the float animation travel', async () => {
+  const { readFileSync } = await import('node:fs')
+  const css = readFileSync('src/app/globals.css', 'utf8')
+
+  // The keyframe body contains nested braces, so isolate its line first and
+  // take the largest magnitude of each property across all the stops.
+  const line = css.split('\n').find((l) => l.includes('@keyframes ww-float-y'))
+  assert.ok(line, '@keyframes ww-float-y is missing')
+
+  const lifts = [...line.matchAll(/translateY\((-?\d+(?:\.\d+)?)px\)/g)].map((m) => Math.abs(Number(m[1])))
+  assert.ok(lifts.length, 'no translateY found in @keyframes ww-float-y')
+  const travel = Math.max(...lifts)
+
+  const rots = [...line.matchAll(/rotate\((-?\d+(?:\.\d+)?)deg\)/g)].map((m) => Math.abs(Number(m[1])))
+  assert.ok(rots.length, 'no rotate found in @keyframes ww-float-y')
+  // Rotating a box about its centre lifts the top corner by (width/2)*sin(angle).
+  const DECO_WIDTH = 176 // Tailwind w-44, the box the decoration paints into
+  const rotationLift = (DECO_WIDTH / 2) * Math.sin((Math.max(...rots) * Math.PI) / 180)
+
+  const clear = css.match(/\.anim-float-clearance\s*\{\s*margin-top:\s*(\d+(?:\.\d+)?)px/)
+  assert.ok(clear, '.anim-float-clearance is missing or no longer uses a px margin-top')
+  const clearance = Number(clear[1])
+
+  assert.ok(
+    clearance >= travel + rotationLift,
+    `clearance is ${clearance}px but the float needs ${(travel + rotationLift).toFixed(1)}px ` +
+      `(${travel}px lift + ${rotationLift.toFixed(1)}px from the rotation) — the decoration will clip`,
+  )
+})
+
+test('the chapter decoration reserves that clearance', async () => {
+  const { readFileSync } = await import('node:fs')
+  const tsx = readFileSync('src/components/game/ChapterScreen.tsx', 'utf8')
+  const img = tsx.match(/className="[^"]*anim-float[^"]*"/)
+  assert.ok(img, 'could not find the floating decoration in ChapterScreen')
+  assert.match(
+    img[0],
+    /anim-float-clearance/,
+    'the floating decoration lost its clearance class and will clip at the top of the scroll container',
+  )
+})
