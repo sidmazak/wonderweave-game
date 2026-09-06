@@ -793,7 +793,7 @@ export function PlayScreen({
   )
 
   return (
-    <div className="play-screen relative flex-1 flex flex-col overflow-hidden ww-tap-none">
+    <div className="play-screen relative flex-1 flex flex-col overflow-hidden ww-tap-none anim-play-in">
       <SceneBackdrop
         src={A(bgKey)}
         tint={chapterBackdropTint(bgKey)}

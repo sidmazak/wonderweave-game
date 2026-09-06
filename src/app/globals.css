@@ -1533,12 +1533,61 @@ body.ww-modal-open .ww-ambient { animation-play-state: paused; }
 }
 .anim-hop { animation: ww-hop 0.66s cubic-bezier(0.32, 0.72, 0.4, 1) both; }
 
-/* screen transitions — quick, subtle, never in the way */
+/* ---------------------------------------------------------------------------
+ * Screen transitions — quick, subtle, never in the way.
+ *
+ * Direction carries meaning: drilling into the world slides in from the right,
+ * backing out slides from the left, and switching a bottom-nav tab lifts
+ * vertically because those tabs are siblings, not deeper places.
+ *
+ * Everything animates transform + opacity ONLY. Both are composited, so a
+ * transition costs no layout and no repaint — that is what keeps these smooth
+ * inside the Android WebView, where animating width/filter/box-shadow on a
+ * full screen visibly drops frames. `translate3d` (not `translateY`) so the
+ * layer is promoted for the duration of the animation and nothing else.
+ * Deliberately short: 180–220ms reads as instant-but-connected, and anything
+ * longer starts to feel like waiting.
+ *
+ * fill-mode is `backwards`, NOT `both`: `both` would leave the end transform
+ * applied for the life of the screen, and any transform — even scale(1) —
+ * makes the element a containing block, which would re-anchor the
+ * position:fixed modals rendered inside it to the screen instead of the
+ * viewport. `backwards` still holds the start frame before the animation runs
+ * (so there is no flash of the un-animated screen) and leaves nothing behind.
+ * ------------------------------------------------------------------------- */
 @keyframes ww-screen-in {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
+  from { opacity: 0; transform: translate3d(0, 10px, 0); }
+  to { opacity: 1; transform: translate3d(0, 0, 0); }
 }
-.anim-screen-in { animation: ww-screen-in 0.3s cubic-bezier(0.25, 0.8, 0.3, 1) both; }
+.anim-screen-in { animation: ww-screen-in 0.18s cubic-bezier(0.22, 0.61, 0.36, 1) backwards; }
+
+@keyframes ww-screen-in-fwd {
+  from { opacity: 0; transform: translate3d(22px, 0, 0) scale(0.988); }
+  to { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
+}
+.anim-screen-in-fwd { animation: ww-screen-in-fwd 0.21s cubic-bezier(0.22, 0.61, 0.36, 1) backwards; }
+
+@keyframes ww-screen-in-back {
+  from { opacity: 0; transform: translate3d(-22px, 0, 0) scale(0.988); }
+  to { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
+}
+.anim-screen-in-back { animation: ww-screen-in-back 0.21s cubic-bezier(0.22, 0.61, 0.36, 1) backwards; }
+
+/* Entering a stage: a short push forward into the board. */
+@keyframes ww-play-in {
+  from { opacity: 0; transform: scale(0.965); }
+  to { opacity: 1; transform: scale(1); }
+}
+.anim-play-in { animation: ww-play-in 0.22s cubic-bezier(0.22, 0.61, 0.36, 1) backwards; }
+
+/* Splash hand-off. The loading screen and the home screen share the same
+   backdrop, so fading the splash out while easing it forward reads as stepping
+   into the world rather than as one screen being swapped for another. */
+@keyframes ww-splash-out {
+  from { opacity: 1; transform: scale(1); }
+  to { opacity: 0; transform: scale(1.035); }
+}
+.anim-splash-out { animation: ww-splash-out 0.28s cubic-bezier(0.4, 0, 0.7, 1) both; }
 
 /* loading bar on the parchment plaque */
 .ww-loader-track {
@@ -1808,6 +1857,10 @@ body.ww-modal-open .ww-ambient { animation-play-state: paused; }
 
   /* Screen/modal entrances stay, just instant. */
   .anim-screen-in,
+  .anim-screen-in-fwd,
+  .anim-screen-in-back,
+  .anim-play-in,
+  .anim-splash-out,
   .anim-modal-in,
   .anim-rise-in,
   .anim-fade-in,

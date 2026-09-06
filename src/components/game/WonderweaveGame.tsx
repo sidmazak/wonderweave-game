@@ -24,6 +24,25 @@ import { DiscoveryToastStack } from './DiscoveryToast'
 
 type Screen = 'splash' | 'meta' | 'play'
 
+/**
+ * Which way the next meta screen should come from.
+ *  - `forward` — going deeper (atlas → chapter, home → chapter)
+ *  - `back`    — coming back out
+ *  - `lateral` — swapping between bottom-nav tabs, which are siblings
+ * Set explicitly at each call site rather than inferred, so a new navigation
+ * path cannot silently animate the wrong way.
+ */
+type NavDir = 'forward' | 'back' | 'lateral'
+
+const SCREEN_IN: Record<NavDir, string> = {
+  forward: 'anim-screen-in-fwd',
+  back: 'anim-screen-in-back',
+  lateral: 'anim-screen-in',
+}
+
+/** Splash fade-out length; must match `.anim-splash-out` in globals.css. */
+const SPLASH_OUT_MS = 280
+
 export default function WonderweaveGame() {
   return (
     <SettingsProvider>
@@ -51,6 +70,8 @@ function GameRoot() {
   const [showInstruments, setShowInstruments] = React.useState(false)
   const [showHowTo, setShowHowTo] = React.useState(false)
   const [resetting, setResetting] = React.useState(false)
+  const [navDir, setNavDir] = React.useState<NavDir>('lateral')
+  const [splashOut, setSplashOut] = React.useState(false)
 
   /* ------- real asset preloading (drives the loading screen) ------- */
   const [loadPct, setLoadPct] = React.useState(0)
@@ -87,11 +108,21 @@ function GameRoot() {
   React.useEffect(() => {
     if (screen !== 'splash' || loadPct < 100) return
     const delay = resetting ? 2400 : 700
-    const t = setTimeout(() => {
+    // Cross-fade rather than cut. The home screen is mounted underneath first
+    // and the splash keeps painting on top as it fades, so the shared backdrop
+    // stays put and the two scenes read as one continuous shot. Swapping in one
+    // step instead would flash the empty root colour between them.
+    const fade = setTimeout(() => {
       setResetting(false)
+      setNavDir('lateral')
+      setSplashOut(true)
       setScreen('meta')
     }, delay)
-    return () => clearTimeout(t)
+    const settle = setTimeout(() => setSplashOut(false), delay + SPLASH_OUT_MS)
+    return () => {
+      clearTimeout(fade)
+      clearTimeout(settle)
+    }
   }, [screen, loadPct, resetting])
 
   const today = dateKey()
@@ -120,6 +151,7 @@ function GameRoot() {
     loadTargetRef.current = 0
     setLoadPct(0)
     setResetting(true)
+    setSplashOut(false)
     setScreen('splash')
   }, [prog])
 
@@ -158,6 +190,7 @@ function GameRoot() {
   const codexUnread = codexCount > codexSeen
 
   const startLevel = React.useCallback((id: number) => {
+    setNavDir('forward')
     setLevelId(id)
     setPlayAttempt((a) => a + 1)
     setScreen('play')
@@ -169,6 +202,7 @@ function GameRoot() {
   /** Leaving a level always lands on HOME — quitting straight back into the
       map felt jarring; the world map is one tap away on the nav bar. */
   const exitToHome = React.useCallback(() => {
+    setNavDir('back')
     setMetaView('home')
     setMapView('atlas')
     setScreen('meta')
@@ -213,6 +247,17 @@ function GameRoot() {
     return { kind: 'fortune', amount: 250, firstRitual: fresh.includes('entity:heart') }
   }, [prog])
 
+  const goHome = React.useCallback(() => {
+    setNavDir('back')
+    setMetaView('home')
+  }, [])
+
+  /** Bottom-nav tabs are siblings, so they get the lateral lift, not a slide. */
+  const handleNavigate = React.useCallback((tab: NavTab) => {
+    setNavDir('lateral')
+    setMetaView(tab)
+  }, [])
+
   const metaScreen = (() => {
     if (metaView === 'home') {
       return (
@@ -223,6 +268,7 @@ function GameRoot() {
           dailyDone={dailyDone}
           onPlay={continueNext}
           onOpenChapter={() => {
+            setNavDir('forward')
             setChapterId(chapterOf(prog.highestUnlocked).id)
             setMapView('chapter')
             setMetaView('map')
@@ -239,7 +285,10 @@ function GameRoot() {
             chapterId={chapterId}
             progress={prog.progress}
             highestUnlocked={prog.highestUnlocked}
-            onBack={() => setMapView('atlas')}
+            onBack={() => {
+              setNavDir('back')
+              setMapView('atlas')
+            }}
             onPlayLevel={startLevel}
           />
         )
@@ -250,17 +299,18 @@ function GameRoot() {
           totalStars={prog.totals.stars}
           highestUnlocked={prog.highestUnlocked}
           onSelectChapter={(ch) => {
+            setNavDir('forward')
             setChapterId(ch)
             setMapView('chapter')
           }}
           onPlayNext={continueNext}
-          onBack={() => setMetaView('home')}
+          onBack={goHome}
         />
       )
     }
-    if (metaView === 'codex') return <CodexScreen onBack={() => setMetaView('home')} />
-    if (metaView === 'relics') return <AltarScreen lumens={prog.lumens} onPerform={handleRitual} onBack={() => setMetaView('home')} />
-    return <DailyScreen daily={prog.daily} onBack={() => setMetaView('home')} onPlay={startDaily} />
+    if (metaView === 'codex') return <CodexScreen onBack={goHome} />
+    if (metaView === 'relics') return <AltarScreen lumens={prog.lumens} onPerform={handleRitual} onBack={goHome} />
+    return <DailyScreen daily={prog.daily} onBack={goHome} onPlay={startDaily} />
   })()
 
   const level = levelId === 0 ? getDailyLevel(dateKey()) : getLevel(levelId)
@@ -279,12 +329,22 @@ function GameRoot() {
       >
         {screen === 'splash' && <LoadingScreen pct={loadPct} resetting={resetting} />}
 
+        {/* Splash held above the freshly-mounted home screen while it fades. */}
+        {splashOut && (
+          <div className="absolute inset-0 z-40 flex flex-col pointer-events-none">
+            <LoadingScreen pct={100} resetting={resetting} exiting />
+          </div>
+        )}
+
         {screen === 'meta' && (
           <>
-            <div key={`meta-${metaView}-${mapView}`} className="relative flex-1 min-h-0 flex flex-col anim-screen-in">
+            <div
+              key={`meta-${metaView}-${mapView}`}
+              className={`relative flex-1 min-h-0 flex flex-col ${SCREEN_IN[navDir]}`}
+            >
               {metaScreen}
             </div>
-            <BottomNav active={metaView} onNavigate={setMetaView} dailyDone={dailyDone} codexUnread={codexUnread} />
+            <BottomNav active={metaView} onNavigate={handleNavigate} dailyDone={dailyDone} codexUnread={codexUnread} />
           </>
         )}
 
@@ -326,9 +386,20 @@ function GameRoot() {
 
 /* -------- loading screen — homepage scene + REAL progress, no click gate -------- */
 
-function LoadingScreen({ pct, resetting = false }: { pct: number; resetting?: boolean }) {
+function LoadingScreen({
+  pct,
+  resetting = false,
+  exiting = false,
+}: {
+  pct: number
+  resetting?: boolean
+  exiting?: boolean
+}) {
   return (
-    <div className="relative flex-1 flex flex-col select-none" aria-label={`Loading Wonderweave — ${pct}%`}>
+    <div
+      className={`relative flex-1 flex flex-col select-none${exiting ? ' anim-splash-out' : ''}`}
+      aria-label={`Loading Wonderweave — ${pct}%`}
+    >
       {/* the exact homepage scene — seamless handoff when the world is ready */}
       <SceneBackdrop
         src={A('bg-castle')}

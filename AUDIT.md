@@ -310,8 +310,37 @@ verified on-device. The remaining work before a Play upload is:
 
 1. Generate a real upload keystore and wire in a release `signingConfig`.
 2. Commit the work.
+3. Re-author the nine `bg-*` chapter backdrops at a usable resolution (below).
 
 The APK is ready for sideloaded testing today.
+
+### Open: chapter backdrops are heavily upscaled
+
+`SceneBackdrop` paints its image at `width: 118%; height: 118%` of a full-screen
+container, so on a 1080-wide device each backdrop is drawn at roughly 1270px.
+The shipped sources are far smaller than that:
+
+| Asset | Source width | Approx. upscale |
+| --- | --- | --- |
+| `bg-sky` | 122px | ~10x |
+| `bg-sunset` | 133px | ~9.5x |
+| `bg-altar` | 154px | ~8x |
+| `bg-arch` | 173px | ~7x |
+| `bg-ruins` | 191px | ~6.5x |
+| `bg-forest` | 223px | ~5.5x |
+| `bg-night` | 246px | ~5x |
+| `bg-castle` | 271px | ~4.5x |
+| `bg-map` | 302px | ~4x |
+
+This is not a code defect and nothing is broken by it, but it is the largest
+remaining hit to perceived quality: every chapter, the home screen and the
+loading screen sit on one of these. Fixing it needs new source art at ~1280px
+wide, not a resample of what ships today. Tiles (~50px, drawn at ~127 device px)
+are the second-order case.
+
+The two chapter decorations that were replaced in this pass — `deco-tree` and
+`deco-moon` — now ship at 448px against a 176 CSS px render box, which is the
+ratio the rest of the art should be held to.
 
 ---
 
